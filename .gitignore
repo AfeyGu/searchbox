@@ -1,0 +1,10 @@
+# 临时/本地产物
+.edge-*/
+*.pem
+*.der
+.DS_Store
+Thumbs.db
+
+# 依赖（本项目零依赖，仅防御）
+node_modules/
+__pycache__/
