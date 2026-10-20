@@ -27,6 +27,7 @@ const els = {
   reveal: document.getElementById("btn-reveal"),
   save: document.getElementById("btn-save"),
   reset: document.getElementById("btn-reset"),
+  remove: document.getElementById("btn-delete"),
   newSource: document.getElementById("btn-new"),
   saveStatus: document.getElementById("save-status"),
   testBlock: document.getElementById("test-block"),
@@ -125,7 +126,7 @@ function renderList() {
     const edit = document.createElement("button");
     edit.className = "btn ghost";
     edit.type = "button";
-    edit.textContent = "编辑";
+    edit.textContent = entry.isPreset ? "编辑" : "编辑 / 删除";
     edit.addEventListener("click", (event) => {
       event.stopPropagation();
       select(entry.id);
@@ -150,6 +151,7 @@ function select(id) {
   els.reveal.textContent = "显示";
   els.keyHint.textContent = id === "anysearch" ? "留空则使用匿名访问（有限流）" : "";
   els.reset.hidden = !presetOf(id) || !state.overrides[id];
+  els.remove.hidden = Boolean(presetOf(id)) || !state.overrides[id];
   els.editorBlock.hidden = false;
   els.testBlock.hidden = false;
   els.testStatus.hidden = true;
@@ -186,6 +188,7 @@ function selectNew() {
   );
   els.key.value = "";
   els.reset.hidden = true;
+  els.remove.hidden = true;
   els.editorBlock.hidden = false;
   els.testBlock.hidden = false;
   showSaveStatus("填好后点保存；保存时会为它申请接口地址的访问权限", "warn");
@@ -273,6 +276,28 @@ async function saveInner() {
   } else {
     showSaveStatus(`已保存：${config.name}`, "ok");
   }
+}
+
+async function deleteSource() {
+  const id = state.selectedId;
+  if (!id || presetOf(id) || !state.overrides[id]) return;
+
+  const name = state.overrides[id]?.name || id;
+  if (!confirm(`删除搜索源「${name}」？此操作不可恢复。`)) return;
+
+  delete state.overrides[id];
+  delete state.keys[id];
+  await chrome.storage.local.set({ sources: state.overrides, keys: state.keys });
+
+  const firstPreset = PRESET_SOURCES[0]?.id;
+  if (firstPreset) select(firstPreset);
+  else {
+    state.selectedId = null;
+    els.editorBlock.hidden = true;
+    els.testBlock.hidden = true;
+    renderList();
+  }
+  showSaveStatus(`已删除：${name}`, "ok");
 }
 
 async function resetToPreset() {
@@ -366,6 +391,7 @@ els.reveal.addEventListener("click", () => {
 
 els.save.addEventListener("click", save);
 els.reset.addEventListener("click", resetToPreset);
+els.remove.addEventListener("click", deleteSource);
 els.test.addEventListener("click", runTest);
 els.newSource.addEventListener("click", selectNew);
 els.testQuery.addEventListener("keydown", (event) => {
