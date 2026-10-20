@@ -275,19 +275,21 @@ body[data-mode="home"] .status:empty { display: none; }
 
 .settings {
   position: fixed;
-  right: 18px;
-  bottom: 18px;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
+  right: 20px;
+  bottom: 20px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--card);
   color: var(--muted);
-  font-size: 16px;
-  line-height: 1;
+  font: inherit;
+  font-size: 13px;
   cursor: pointer;
-  opacity: 0.5;
-  transition: opacity 0.15s, color 0.15s;
+  opacity: 0.85;
+  transition: opacity 0.15s, color 0.15s, border-color 0.15s;
 }
 
-.settings:hover { opacity: 1; color: var(--fg); }
+.settings:hover { opacity: 1; color: var(--fg); border-color: var(--accent); }
+
+body[data-mode="home"] .settings { opacity: 0.7; }
