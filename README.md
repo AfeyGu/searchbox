@@ -5,7 +5,7 @@
 ## 安装
 
 1. 打开 `edge://extensions`（或 `chrome://extensions`），开启「开发人员模式」
-2. 「加载解压缩的扩展」→ 选择本目录
+2. 「加载解压缩的扩展」→ 选择本仓库的 **`extension/`** 子目录
 3. `Ctrl+T` 打开新标签页，应看到搜索框
 
 ## 使用
@@ -62,7 +62,7 @@
 
 ## 自检
 
-改过 `src/core/` 里的解析或合并逻辑后，打开 `src/tests.html`（设置页底部有入口）跑一遍断言，应全绿。
+改过 `extension/src/core/` 里的解析或合并逻辑后，打开 `extension/src/tests.html`（设置页底部有入口）跑一遍断言，应全绿。
 
 ## 结果数量
 
@@ -80,16 +80,22 @@
 ## 结构
 
 ```
-manifest.json        MV3 清单；扩展 ID 由 key 固定
-src/search.*         首页与结果页（同一个页面）
-src/options.*        设置页：源列表、配置编辑、Key、测试面板
-src/bg.js            新标签页软接管 + 划词右键菜单（不发请求）
-src/core/preset.js   内置源
-src/core/request.js  占位符替换 + 请求执行 + 权限预检
-src/core/extract.js  响应解析
-src/core/merge.js    URL 归一化 + 去重 + 名次交错
-src/core/history.js  最近搜索（一个查询词一个键）
-src/tests.*          纯函数断言页
+extension/                  ← 这一层才是被浏览器加载的扩展目录
+  manifest.json             MV3 清单；扩展 ID 由 key 固定
+  src/search.*              首页与结果页（同一个页面）
+  src/options.*             设置页：源列表、配置编辑、Key、测试面板
+  src/bg.js                 新标签页软接管 + 划词右键菜单（不发请求）
+  src/core/preset.js        内置源
+  src/core/request.js       占位符替换 + 请求执行 + 权限预检
+  src/core/extract.js       响应解析
+  src/core/merge.js         URL 归一化 + 去重 + 名次交错
+  src/core/history.js       最近搜索（一个查询词一个键）
+  src/core/settings.js      每个来源取多少条
+  src/tests.*               纯函数断言页
+.sisyph/notes/              架构与决策记录
+README.md
 ```
+
+扩展目录与仓库其余内容分开：浏览器会扫描整个被加载的目录，把笔记、私钥、git 元数据放在里面既不必要，也会触发浏览器告警。
 
 架构与决策记录见 `.sisyph/notes/2026-10-20-plan.md`。
