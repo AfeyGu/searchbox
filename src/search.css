@@ -279,6 +279,7 @@ body[data-mode="home"] .status:empty { display: none; }
   display: block;
   text-decoration: none;
   color: inherit;
+  min-width: 0; /* 网格项默认 min-width:auto，不设为 0 时长标题会把整行撑破 */
 }
 
 .hit-title {
@@ -315,6 +316,7 @@ body[data-mode="home"] .status:empty { display: none; }
 
 .hit-snippet {
   grid-column: 2;
+  min-width: 0; /* 同上：否则超长摘要会撑破网格列 */
   margin: 4px 0 0;
   font-size: 14px;
   color: var(--muted);
