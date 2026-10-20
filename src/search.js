@@ -66,9 +66,13 @@ function renderSkeleton() {
 }
 
 function renderResults() {
+  const scrollY = window.scrollY;
   resultsEl.replaceChildren();
-  if (!hits.length) return;
+  if (hits.length) paintHits();
+  window.scrollTo({ top: scrollY });
+}
 
+function paintHits() {
   hits.forEach((hit, index) => {
     const li = document.createElement("li");
     li.className = "hit";
@@ -87,7 +91,9 @@ function renderResults() {
 
     const title = document.createElement("h2");
     title.className = "hit-title";
-    title.textContent = hit.title || hostOf(hit.url);
+    // 有些接口的 title 直接就是一串链接，这种当域名显示，比裸 URL 可读
+    const titleIsUrl = /^https?:\/\//i.test(hit.title || "");
+    title.textContent = !hit.title || titleIsUrl ? hostOf(hit.url) : hit.title;
 
     const meta = document.createElement("div");
     meta.className = "hit-meta";
@@ -119,6 +125,7 @@ async function search(query) {
   const runId = ++currentRun;
   selected = -1;
   hits = [];
+  allHits = [];
   setMode("results");
   renderSkeleton();
   setStatus(`正在搜索「${query}」…`, "busy");
@@ -131,39 +138,47 @@ async function search(query) {
   }
 
   const started = performance.now();
-  const settled = await Promise.all(
-    sources.map(async (source) => {
+  const settled = new Array(sources.length).fill(null);
+
+  /** 每有一个源返回就重算一次：先到的先显示，不用等最慢的那个。 */
+  const paint = () => {
+    if (runId !== currentRun) return;
+    const done = settled.filter(Boolean);
+    const groups = done
+      .filter((item) => item.ok)
+      .map((item) => ({ id: item.source.id, name: item.source.name, items: item.items }));
+    const pending = sources.length - done.length;
+
+    allHits = interleave(groups, RESULT_LIMIT);
+    lastRun = {
+      ms: Math.round(performance.now() - started),
+      rawTotal: groups.reduce((sum, group) => sum + group.items.length, 0),
+      settled: done
+    };
+    clearExtraStatus();
+    renderChips(done, sources);
+
+    if (!groups.length && pending > 0) {
+      setStatus(`搜索「${query}」（${done.length}/${sources.length} 个来源已返回）…`, "busy");
+      return; // 保留骨架屏
+    }
+    if (!groups.length) {
+      resultsEl.replaceChildren();
+      setStatus(done.map((item) => `${item.source.name}：${item.error}`).join("\n") || "全部搜索源都失败了", "error");
+      return;
+    }
+    applyFilter({ pending });
+  };
+
+  await Promise.all(
+    sources.map(async (source, index) => {
       const key = await loadKey(source.id);
       const result = await runSource(source, query, { limit: PER_SOURCE_LIMIT, key });
       if (result.ok && result.newKey) await rememberKey(source.id, result.newKey);
-      return { source, ...result };
+      settled[index] = { source, ...result };
+      paint();
     })
   );
-
-  if (runId !== currentRun) return; // 已有更新的搜索，丢弃这次结果
-
-  const groups = settled
-    .filter((item) => item.ok)
-    .map((item) => ({ id: item.source.id, name: item.source.name, items: item.items }));
-  const failures = settled.filter((item) => !item.ok);
-
-  allHits = interleave(groups, RESULT_LIMIT);
-  lastRun = {
-    ms: Math.round(performance.now() - started),
-    rawTotal: groups.reduce((sum, group) => sum + group.items.length, 0),
-    settled
-  };
-  clearExtraStatus();
-
-  if (!groups.length) {
-    resultsEl.replaceChildren();
-    setStatus(failures.map((f) => `${f.source.name}：${f.error}`).join("\n") || "全部搜索源都失败了", "error");
-    renderChips(settled);
-    return;
-  }
-
-  renderChips(settled);
-  applyFilter();
 }
 
 /** 按当前来源取结果。
@@ -182,7 +197,7 @@ function currentHits() {
 }
 
 /** 按当前来源过滤，重绘结果与状态文字。 */
-function applyFilter() {
+function applyFilter({ pending = 0 } = {}) {
   hits = currentHits();
   selected = -1;
   renderResults();
@@ -191,8 +206,13 @@ function applyFilter() {
     chip.classList.toggle("active", (chip.dataset.sourceId || null) === filterSource);
   });
 
+  const waiting = pending > 0 ? `（还有 ${pending} 个来源在返回…）` : "";
+
   if (!hits.length) {
-    setStatus(filterSource ? `${nameOfSource(filterSource)} 没有返回结果` : "没有结果，换个说法试试", "error");
+    setStatus(
+      filterSource ? `${nameOfSource(filterSource)} 没有返回结果` : "没有结果，换个说法试试",
+      "error"
+    );
     return;
   }
 
@@ -205,7 +225,7 @@ function applyFilter() {
     summary = `${hits.length} 条结果 · ${lastRun.ms} ms` +
       (duplicates > 0 ? `（${lastRun.rawTotal} 条合并去重 ${duplicates} 条）` : "");
   }
-  setStatus(summary, "info");
+  setStatus(summary + waiting, pending > 0 ? "busy" : "info");
 }
 
 function nameOfSource(id) {
@@ -213,7 +233,7 @@ function nameOfSource(id) {
 }
 
 /** 来源标签：既是状态也是过滤器，点一下只看这一家，再点回到全部。 */
-function renderChips(settled) {
+function renderChips(done, sources) {
   const box = document.createElement("div");
   box.className = "status extra source-status";
 
@@ -228,22 +248,28 @@ function renderChips(settled) {
   });
   box.append(all);
 
-  for (const item of settled) {
+  for (const source of sources) {
+    const item = done?.find((entry) => entry.source.id === source.id);
     const chip = document.createElement("button");
     chip.type = "button";
-    chip.dataset.sourceId = item.source.id;
-    if (item.ok) {
+    chip.dataset.sourceId = source.id;
+
+    if (!item) {
+      chip.className = "chip pending";
+      chip.disabled = true;
+      chip.textContent = `${source.name} 搜索中…`;
+    } else if (item.ok) {
       chip.className = "chip ok";
-      chip.textContent = `${item.source.name} ${item.items.length} 条`;
-      chip.title = `只看 ${item.source.name}`;
+      chip.textContent = `${source.name} ${item.items.length} 条`;
+      chip.title = `只看 ${source.name}`;
       chip.addEventListener("click", () => {
-        filterSource = filterSource === item.source.id ? null : item.source.id;
+        filterSource = filterSource === source.id ? null : source.id;
         applyFilter();
       });
     } else {
       chip.className = "chip bad";
       chip.disabled = true;
-      chip.textContent = `${item.source.name}：${item.error}`;
+      chip.textContent = `${source.name}：${item.error}`;
       chip.title = item.error;
     }
     box.append(chip);
@@ -252,7 +278,7 @@ function renderChips(settled) {
   statusEl.after(box);
 
   // 被过滤的源这一轮没结果时自动回到全部，避免空白页
-  if (filterSource && !settled.some((item) => item.ok && item.source.id === filterSource)) {
+  if (filterSource && !done?.some((item) => item.ok && item.source.id === filterSource)) {
     filterSource = null;
   }
 }

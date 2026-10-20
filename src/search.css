@@ -183,6 +183,7 @@ body[data-mode="home"] .status:empty { display: none; }
 
 .chip.ok { color: var(--fg); background: var(--hover); }
 .chip.bad { color: var(--err-fg); background: var(--err-bg); border-color: transparent; }
+.chip.pending { color: var(--muted); border-style: dashed; background: transparent; }
 
 .source-status .chip:not(:disabled) { cursor: pointer; }
 .source-status .chip:not(:disabled):hover { border-color: var(--accent); color: var(--fg); }
