@@ -18,24 +18,40 @@ async function takeoverEnabled() {
   return newtabTakeover;
 }
 
-async function maybeRedirect(tabId, url) {
+async function maybeRedirect(tabId, url, tab) {
   if (!url || !NEW_TAB.test(url)) return;
   if (handled.has(tabId)) return;
   handled.add(tabId);
   if (!(await takeoverEnabled())) return;
+
+  const target = chrome.runtime.getURL("src/search.html");
+
+  // 为什么不是简单的 tabs.update：那样地址栏会保持焦点，
+  // 用户 Ctrl+T 后直接打字会打进地址栏。实测「浏览器自己创建的标签」焦点在地址栏，
+  // 而「扩展 chrome.tabs.create 出来的标签」焦点落在页面里，
+  // 所以这里新建一个同位标签再删掉旧的，把焦点带到搜索框。
   try {
-    await chrome.tabs.update(tabId, { url: chrome.runtime.getURL("src/search.html") });
+    const props = { url: target, active: true };
+    if (typeof tab?.index === "number") props.index = tab.index;
+    if (typeof tab?.windowId === "number") props.windowId = tab.windowId;
+    const created = await chrome.tabs.create(props);
+    handled.add(created.id);
+    await chrome.tabs.remove(tabId);
   } catch {
-    // 标签页可能已被关闭或不可更新，忽略
+    try {
+      await chrome.tabs.update(tabId, { url: target });
+    } catch {
+      // 标签页可能已被关闭，忽略
+    }
   }
 }
 
 chrome.tabs.onCreated.addListener((tab) => {
-  maybeRedirect(tab.id, tab.pendingUrl || tab.url);
+  maybeRedirect(tab.id, tab.pendingUrl || tab.url, tab);
 });
 
-chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.url) maybeRedirect(tabId, changeInfo.url);
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.url) maybeRedirect(tabId, changeInfo.url, tab);
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {

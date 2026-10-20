@@ -446,7 +446,37 @@ window.addEventListener("popstate", () => {
 
 /* ---------- 启动 ---------- */
 
+/**
+ * 尽量把焦点拉到搜索框。
+ *
+ * Ctrl+T 之后焦点在浏览器地址栏里，网页无法直接夺回（这是浏览器的焦点保护），
+ * 但页面拿到焦点时（切换标签、按 Esc 从地址栏退回内容区）应该立刻落在输入框上，
+ * 所以这里既主动尝试，也在获得焦点时补一次。
+ */
+function focusSearchBox() {
+  try {
+    window.focus();
+  } catch {
+    /* 某些环境会拒绝，忽略 */
+  }
+  input.focus({ preventScroll: true });
+}
+
+function wireFocusRecovery() {
+  window.addEventListener("focus", () => {
+    if (document.body.dataset.mode === "home" && document.activeElement !== input) {
+      input.focus({ preventScroll: true });
+    }
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && document.body.dataset.mode === "home") {
+      focusSearchBox();
+    }
+  });
+}
+
 function boot() {
+  wireFocusRecovery();
   const query = (new URLSearchParams(location.search).get("q") || "").trim();
   if (query) {
     input.value = query;
@@ -456,7 +486,8 @@ function boot() {
   }
   setMode("home");
   renderHistory();
-  input.focus();
+  focusSearchBox();
+  [0, 60, 200].forEach((delay) => setTimeout(focusSearchBox, delay));
 }
 
 boot();
