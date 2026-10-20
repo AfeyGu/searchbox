@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>Searchbox 测试</title>
+  <style>
+    :root { --ok: #1b5e20; --okbg: #e8f5e9; --bad: #a1201a; --badbg: #fdecea; --line: #e5e7eb; --muted: #5f6368; }
+    @media (prefers-color-scheme: dark) {
+      :root { --ok: #9ae6a3; --okbg: #17301c; --bad: #ff9d94; --badbg: #3a1a17; --line: #2a2d33; --muted: #9aa0a6; }
+      body { background: #14161a; color: #e8eaed; }
+    }
+    body { font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; margin: 0; padding: 28px; max-width: 860px; }
+    h1 { font-size: 20px; margin: 0 0 6px; }
+    p.sub { color: var(--muted); margin: 0 0 20px; font-size: 13px; }
+    #summary { padding: 10px 14px; border-radius: 10px; font-weight: 600; margin-bottom: 18px; }
+    #summary.ok { background: var(--okbg); color: var(--ok); }
+    #summary.bad { background: var(--badbg); color: var(--bad); }
+    ul { list-style: none; margin: 0; padding: 0; }
+    li { padding: 7px 0; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: flex-start; }
+    li .mark { width: 18px; flex: 0 0 auto; font-weight: 700; }
+    li.pass .mark { color: var(--ok); }
+    li.fail .mark { color: var(--bad); }
+    li .detail { color: var(--bad); font-family: ui-monospace, Consolas, monospace; font-size: 12px; margin-top: 3px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Searchbox 纯函数测试</h1>
+  <p class="sub">覆盖占位符替换、响应解析、URL 归一化与结果合并。改动这几块逻辑后打开本页，应全绿。</p>
+  <div id="summary">运行中…</div>
+  <ul id="list"></ul>
+  <script type="module" src="tests.js"></script>
+</body>
+</html>

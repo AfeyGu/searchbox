@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Searchbox",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "把 JSON 搜索 API 变成你自己的搜索结果页",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6hPiiBhJlO/DNnkFI1cbc7qz0YCW+BRRziZfWgxSIS3bagE1ZO7a0OQL0kYC0VCHijO92yI+LyfRVO3ydZF99Jm6rpVzSAxRBD1hQxpJEEoEu2lq4p7rUec9ZPQXONa1Ly2ZdcYs3KapAu1RCJp++nQi3x0Bg+CBk5nflXCSMpSJnjRZfhxjvfgZmOlpcEgPY1M8veNmxnNAafcqQJI5GBn8WPUvauB4wXBRWB71X6jFsvwWp+3dJl4xX00kMeTu8Wfie8dhIKmRJfq9gKqvBANJocw9VIOEpW7vUBLcpTmPf1B1bPyDVUJXeoY0vmDpuWm4XIByUT5GRFtudFOPBwIDAQAB",
   "permissions": ["storage", "favicon", "tabs", "contextMenus"],

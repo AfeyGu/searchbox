@@ -162,6 +162,8 @@ textarea {
 .status.error { background: var(--err-bg); color: var(--err-fg); }
 
 .tip { color: var(--muted); font-size: 12.5px; margin: 12px 0 0; }
+.footer { margin: 4px 0 0; text-align: center; }
+.footer a { color: var(--accent); }
 
 /* 测试面板 */
 
