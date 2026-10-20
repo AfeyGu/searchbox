@@ -42,8 +42,8 @@ export const PRESET_SOURCES = [
     request: {
       url: "https://api.tavily.com/search",
       method: "POST",
+      headers: { Authorization: "Bearer {{key}}" },
       body: {
-        api_key: "{{key}}",
         query: "{{query}}",
         max_results: "{{limit}}"
       }
