@@ -7,6 +7,7 @@ import { loadSources, loadKey } from "./core/preset.js";
 import { runSource } from "./core/request.js";
 import { interleave } from "./core/merge.js";
 import { readHistory, recordHistory, clearHistory } from "./core/history.js";
+import { loadPerSourceLimit } from "./core/settings.js";
 
 const form = document.getElementById("form");
 const input = document.getElementById("q");
@@ -18,8 +19,7 @@ const historyBox = document.getElementById("history");
 const historyList = document.getElementById("history-list");
 const historyClear = document.getElementById("history-clear");
 
-const RESULT_LIMIT = 40;
-const PER_SOURCE_LIMIT = 10;
+const RESULT_LIMIT = 40;   // 合并去重后的总上限（不对外配置）
 
 let allHits = [];         // 合并去重后的全集
 let hits = [];            // 当前可见（受来源过滤影响）
@@ -155,6 +155,7 @@ async function search(query) {
     return;
   }
 
+  const perSourceLimit = await loadPerSourceLimit();
   const started = performance.now();
   const settled = new Array(sources.length).fill(null);
 
@@ -191,7 +192,7 @@ async function search(query) {
   await Promise.all(
     sources.map(async (source, index) => {
       const key = await loadKey(source.id);
-      const result = await runSource(source, query, { limit: PER_SOURCE_LIMIT, key });
+      const result = await runSource(source, query, { limit: perSourceLimit, key });
       if (result.ok && result.newKey) await rememberKey(source.id, result.newKey);
       settled[index] = { source, ...result };
       paint();

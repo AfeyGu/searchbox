@@ -126,6 +126,19 @@ input[type="text"], input[type="password"], textarea {
   font: inherit;
 }
 
+input[type="number"] {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font: inherit;
+  width: 96px;
+}
+
+.limit-field { margin: 18px 0 0; }
+.inline-hint { color: var(--muted); font-size: 12.5px; align-self: center; }
+
 input[type="text"], input[type="password"] { max-width: 420px; }
 input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 

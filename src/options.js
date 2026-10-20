@@ -12,9 +12,12 @@
 
 import { PRESET_SOURCES } from "./core/preset.js";
 import { runSource } from "./core/request.js";
+import { loadPerSourceLimit, savePerSourceLimit, MAX_PER_SOURCE_LIMIT, MIN_PER_SOURCE_LIMIT } from "./core/settings.js";
 
 const els = {
   newtab: document.getElementById("newtab-toggle"),
+  limit: document.getElementById("limit-input"),
+  limitHint: document.getElementById("limit-hint"),
   list: document.getElementById("source-list"),
   editorBlock: document.getElementById("editor-block"),
   editorTitle: document.getElementById("editor-title"),
@@ -48,6 +51,7 @@ async function load() {
   state.overrides = data.sources;
   state.keys = data.keys;
   els.newtab.checked = data.newtabTakeover !== false;
+  els.limit.value = await loadPerSourceLimit();
 }
 
 async function persist() {
@@ -342,6 +346,13 @@ async function runTest() {
 }
 
 /* ---------- 事件绑定 ---------- */
+
+els.limit.addEventListener("change", async () => {
+  const saved = await savePerSourceLimit(els.limit.value);
+  els.limit.value = saved;
+  els.limitHint.textContent = `已保存：每个来源 ${saved} 条（范围 ${MIN_PER_SOURCE_LIMIT}–${MAX_PER_SOURCE_LIMIT}）`;
+  setTimeout(() => { els.limitHint.textContent = ""; }, 2500);
+});
 
 els.newtab.addEventListener("change", async () => {
   await chrome.storage.local.set({ newtabTakeover: els.newtab.checked });

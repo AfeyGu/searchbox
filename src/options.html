@@ -18,6 +18,14 @@
           <em>开启后 Ctrl+T 直接打开搜索页；关闭后新标签页恢复浏览器默认</em>
         </span>
       </label>
+
+      <label class="field limit-field">
+        <span>每个来源取多少条<em>1–50；条数越多首屏越慢</em></span>
+        <div class="inline">
+          <input id="limit-input" type="number" min="1" max="50" step="1">
+          <span id="limit-hint" class="inline-hint"></span>
+        </div>
+      </label>
     </section>
 
     <section class="block">

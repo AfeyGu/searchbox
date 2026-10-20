@@ -7,6 +7,7 @@ import { fillString, fillValue } from "./core/request.js";
 import { getPath, pickFirst, isOk, extractItems } from "./core/extract.js";
 import { normalizeUrl, interleave } from "./core/merge.js";
 import { isFresh, MAX_AGE_MS } from "./core/history.js";
+import { clampLimit, DEFAULT_PER_SOURCE_LIMIT, MIN_PER_SOURCE_LIMIT, MAX_PER_SOURCE_LIMIT } from "./core/settings.js";
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -175,6 +176,25 @@ test("isFresh：31 天前算过期", () => {
 test("isFresh：正好 30 天算过期（严格大于才保留）", () => {
   const now = Date.now();
   assert(isFresh(now - MAX_AGE_MS, now) === false, "边界应过期");
+});
+
+/* ---------- 条数设置 ---------- */
+
+test("clampLimit：空值回退默认", () => {
+  eq(clampLimit(""), DEFAULT_PER_SOURCE_LIMIT);
+  eq(clampLimit(undefined), DEFAULT_PER_SOURCE_LIMIT);
+  eq(clampLimit("abc"), DEFAULT_PER_SOURCE_LIMIT);
+});
+
+test("clampLimit：超出范围收敛到边界", () => {
+  eq(clampLimit(0), MIN_PER_SOURCE_LIMIT);
+  eq(clampLimit(999), MAX_PER_SOURCE_LIMIT);
+  eq(clampLimit(-5), MIN_PER_SOURCE_LIMIT);
+});
+
+test("clampLimit：字符串数字与小数", () => {
+  eq(clampLimit("7"), 7);
+  eq(clampLimit(3.6), 4);
 });
 
 /* ---------- 执行 ---------- */
