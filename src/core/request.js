@@ -63,6 +63,18 @@ export function fillValue(value, vars) {
 }
 
 /**
+ * 取源的接口 origin，用于权限检查与提示。
+ */
+export function originOf(source) {
+  const raw = source?.origin || source?.request?.url || "";
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return "";
+  }
+}
+
+/**
  * 执行一个源。
  * 返回 { ok, items?, error?, ms, newKey?, raw? }
  */
@@ -74,6 +86,16 @@ export async function runSource(source, query, options = {}) {
   const request = source.request || {};
   const url = fillString(request.url || "", vars);
   if (!url.ok || !url.value) return { ok: false, error: "请求地址含未填充的占位符" };
+
+  // 没有该 origin 的权限时，fetch 只会抛一句无从下手的 "Failed to fetch"，
+  // 这里提前拦下来，直接说清楚原因和解法。
+  const origin = originOf(source);
+  if (origin && chrome?.permissions?.contains) {
+    const granted = await chrome.permissions.contains({ origins: [`${origin}/*`] });
+    if (!granted) {
+      return { ok: false, error: `未授权访问 ${origin}，去设置页保存一次这个源即可授权` };
+    }
+  }
 
   const method = String(request.method || "GET").toUpperCase();
   const headers = {};
@@ -125,7 +147,11 @@ export async function runSource(source, query, options = {}) {
     return { ok: true, items, ms: Math.round(performance.now() - started), newKey, raw };
   } catch (error) {
     if (error?.name === "AbortError") return { ok: false, error: `超时 ${timeoutMs}ms` };
-    return { ok: false, error: String(error?.message || error) };
+    const message = String(error?.message || error);
+    if (/failed to fetch|networkerror|load failed/i.test(message)) {
+      return { ok: false, error: "请求失败（网络不可达，或被接口的跨域策略拦截）" };
+    }
+    return { ok: false, error: message };
   } finally {
     clearTimeout(timer);
   }

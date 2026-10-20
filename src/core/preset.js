@@ -60,13 +60,22 @@ export const PRESET_SOURCES = [
   }
 ];
 
-/** 读取生效的源列表：preset 打底，storage 中的用户版本按 id 覆盖。 */
+/** 读取生效的源列表：preset 打底，storage 中的用户版本按 id 覆盖，另加用户自定义源。 */
 export async function loadSources() {
   const { sources = {} } = await chrome.storage.local.get("sources");
-  return PRESET_SOURCES.map((preset) => {
+  const presetIds = new Set(PRESET_SOURCES.map((source) => source.id));
+
+  const merged = PRESET_SOURCES.map((preset) => {
     const override = sources[preset.id];
     return override ? { ...preset, ...override } : { ...preset };
   });
+
+  for (const [id, config] of Object.entries(sources)) {
+    if (presetIds.has(id)) continue;
+    merged.push({ ...config, id: config.id || id });
+  }
+
+  return merged;
 }
 
 /** 读取某个源的 key。 */

@@ -155,17 +155,27 @@ async function search(query) {
   if (!groups.length) {
     resultsEl.replaceChildren();
     setStatus(failures.map((f) => `${f.source.name}：${f.error}`).join("\n") || "全部搜索源都失败了", "error");
+    renderSourceStatus(settled);
     return;
   }
 
   renderResults(Math.round(performance.now() - started));
+  renderSourceStatus(settled);
+}
 
-  if (failures.length) {
-    const line = document.createElement("div");
-    line.className = "status warn extra";
-    line.textContent = `部分来源失败 — ${failures.map((f) => `${f.source.name}：${f.error}`).join("；")}`;
-    statusEl.after(line);
+/** 每个源各给一条状态：成功报条数，失败报原因。合并结果对不对，一眼能看出来。 */
+function renderSourceStatus(settled) {
+  const box = document.createElement("div");
+  box.className = "status extra source-status";
+  for (const item of settled) {
+    const chip = document.createElement("span");
+    chip.className = `chip ${item.ok ? "ok" : "bad"}`;
+    chip.textContent = item.ok
+      ? `${item.source.name} ${item.items.length} 条`
+      : `${item.source.name}：${item.error}`;
+    box.append(chip);
   }
+  statusEl.after(box);
 }
 
 /** 移除上一轮搜索留下的附加提示（失败横幅等），避免多次搜索后堆积。 */

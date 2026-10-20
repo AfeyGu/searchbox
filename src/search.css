@@ -160,6 +160,29 @@ body[data-mode="home"] .status:empty { display: none; }
 .status.warn { background: var(--warn-bg); color: var(--warn-fg); }
 .status.error { background: var(--err-bg); color: var(--err-fg); }
 
+/* 源级状态：每个源一条，成功报条数、失败报原因 */
+
+.source-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  background: none;
+}
+
+.chip {
+  font-size: 12px;
+  line-height: 20px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--card);
+}
+
+.chip.ok { color: var(--fg); background: var(--hover); }
+.chip.bad { color: var(--err-fg); background: var(--err-bg); border-color: transparent; }
+
 /* 结果列表 */
 
 .results {
