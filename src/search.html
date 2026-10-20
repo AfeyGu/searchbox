@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Searchbox</title>
+  <link rel="stylesheet" href="search.css">
+</head>
+<body data-mode="home">
+  <div class="wrap">
+    <header class="brand">
+      <h1>Searchbox</h1>
+    </header>
+
+    <form id="form" class="bar" role="search" autocomplete="off">
+      <svg class="lens" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"></circle>
+        <line x1="16.2" y1="16.2" x2="21" y2="21"></line>
+      </svg>
+      <input id="q" name="q" type="search" placeholder="搜索…" aria-label="搜索" spellcheck="false" autocomplete="off">
+      <button id="clear" type="button" title="清空 (Esc)" hidden>×</button>
+    </form>
+
+    <p id="hint" class="hint">输入关键词，回车搜索 · 结果页可用 ↑↓ 选择、Enter 打开、Ctrl+Enter 新标签</p>
+
+    <section id="status" class="status" hidden></section>
+    <ol id="results" class="results" hidden></ol>
+  </div>
+
+  <script type="module" src="search.js"></script>
+</body>
+</html>
