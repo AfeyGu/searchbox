@@ -6,6 +6,7 @@
 import { fillString, fillValue } from "./core/request.js";
 import { getPath, pickFirst, isOk, extractItems } from "./core/extract.js";
 import { normalizeUrl, interleave } from "./core/merge.js";
+import { isFresh, MAX_AGE_MS } from "./core/history.js";
 
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
@@ -132,6 +133,24 @@ test("interleave：跨源重复链接只保留先出现的那条", () => {
   eq(merged[0].sourceId, "a");
 });
 
+test("interleave：重复项把所有来源都记下来", () => {
+  const groups = [
+    { id: "a", name: "A", items: [{ url: "https://same.com/x" }] },
+    { id: "b", name: "B", items: [{ url: "https://same.com/x" }] },
+    { id: "c", name: "C", items: [{ url: "https://same.com/x" }] }
+  ];
+  const merged = interleave(groups);
+  eq(merged.length, 1);
+  eq(merged[0].sources.map((source) => source.name), ["A", "B", "C"]);
+});
+
+test("interleave：同一个源重复返回同一链接不会重复记录来源", () => {
+  const groups = [
+    { id: "a", name: "A", items: [{ url: "https://same.com/x" }, { url: "https://same.com/x" }] }
+  ];
+  eq(interleave(groups)[0].sources.length, 1);
+});
+
 test("interleave：结果上限生效", () => {
   const items = Array.from({ length: 50 }, (_, i) => ({ url: `https://a/${i}` }));
   eq(interleave([{ id: "a", name: "A", items }], 40).length, 40);
@@ -139,6 +158,23 @@ test("interleave：结果上限生效", () => {
 
 test("interleave：空输入返回空数组", () => {
   eq(interleave([]), []);
+});
+
+/* ---------- 历史过期 ---------- */
+
+test("isFresh：29 天前算新鲜", () => {
+  const now = Date.now();
+  assert(isFresh(now - 29 * 24 * 3600 * 1000, now) === true, "29 天应保留");
+});
+
+test("isFresh：31 天前算过期", () => {
+  const now = Date.now();
+  assert(isFresh(now - 31 * 24 * 3600 * 1000, now) === false, "31 天应过期");
+});
+
+test("isFresh：正好 30 天算过期（严格大于才保留）", () => {
+  const now = Date.now();
+  assert(isFresh(now - MAX_AGE_MS, now) === false, "边界应过期");
 });
 
 /* ---------- 执行 ---------- */

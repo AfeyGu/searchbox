@@ -311,6 +311,8 @@ body[data-mode="home"] .status:empty { display: none; }
   line-height: 16px;
 }
 
+.hit-source.more { border-style: dashed; }
+
 .hit-snippet {
   grid-column: 2;
   margin: 4px 0 0;

@@ -106,10 +106,23 @@ function paintHits() {
     site.textContent = hostOf(hit.url);
     meta.append(site);
     if (hit.sourceName) {
-      const badge = document.createElement("span");
-      badge.className = "hit-source";
-      badge.textContent = hit.sourceName;
-      meta.append(badge);
+      const names = (hit.sources?.length ? hit.sources : [{ id: hit.sourceId, name: hit.sourceName }]).map(
+        (source) => source.name
+      );
+      const shown = names.slice(0, 3);
+      for (const name of shown) {
+        const badge = document.createElement("span");
+        badge.className = "hit-source";
+        badge.textContent = name;
+        meta.append(badge);
+      }
+      if (names.length > shown.length) {
+        const more = document.createElement("span");
+        more.className = "hit-source more";
+        more.textContent = `+${names.length - shown.length}`;
+        more.title = names.join("、");
+        meta.append(more);
+      }
     }
 
     link.append(title, meta);
@@ -223,7 +236,7 @@ function applyFilter({ pending = 0 } = {}) {
 
   let summary;
   if (filterSource) {
-    const kept = allHits.filter((hit) => hit.sourceId === filterSource).length;
+    const kept = allHits.filter((hit) => hit.sources?.some((source) => source.id === filterSource)).length;
     summary = `${nameOfSource(filterSource)} · ${hits.length} 条 · ${lastRun.ms} ms（去重后并入「全部」${kept} 条）`;
   } else {
     const duplicates = lastRun.rawTotal - allHits.length;
