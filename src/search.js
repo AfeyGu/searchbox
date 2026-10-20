@@ -17,9 +17,12 @@ const resultsEl = document.getElementById("results");
 const RESULT_LIMIT = 40;
 const PER_SOURCE_LIMIT = 10;
 
-let hits = [];
+let allHits = [];         // 合并去重后的全集
+let hits = [];            // 当前可见（受来源过滤影响）
 let selected = -1;
 let currentRun = 0;
+let filterSource = null;  // null = 全部来源
+let lastRun = { ms: 0, rawTotal: 0, settled: [] };
 
 /* ---------- 小工具 ---------- */
 
@@ -62,12 +65,9 @@ function renderSkeleton() {
   }
 }
 
-function renderResults(elapsedMs) {
+function renderResults() {
   resultsEl.replaceChildren();
-  if (!hits.length) {
-    setStatus("没有结果，换个说法试试", "error");
-    return;
-  }
+  if (!hits.length) return;
 
   hits.forEach((hit, index) => {
     const li = document.createElement("li");
@@ -111,8 +111,6 @@ function renderResults(elapsedMs) {
     li.append(icon, link, snippet);
     resultsEl.append(li);
   });
-
-  setStatus(`${hits.length} 条结果 · ${elapsedMs} ms`, "info");
 }
 
 /* ---------- 搜索 ---------- */
@@ -149,33 +147,95 @@ async function search(query) {
     .map((item) => ({ id: item.source.id, name: item.source.name, items: item.items }));
   const failures = settled.filter((item) => !item.ok);
 
-  hits = interleave(groups, RESULT_LIMIT);
+  allHits = interleave(groups, RESULT_LIMIT);
+  lastRun = {
+    ms: Math.round(performance.now() - started),
+    rawTotal: groups.reduce((sum, group) => sum + group.items.length, 0),
+    settled
+  };
   clearExtraStatus();
 
   if (!groups.length) {
     resultsEl.replaceChildren();
     setStatus(failures.map((f) => `${f.source.name}：${f.error}`).join("\n") || "全部搜索源都失败了", "error");
-    renderSourceStatus(settled);
+    renderChips(settled);
     return;
   }
 
-  renderResults(Math.round(performance.now() - started));
-  renderSourceStatus(settled);
+  renderChips(settled);
+  applyFilter();
 }
 
-/** 每个源各给一条状态：成功报条数，失败报原因。合并结果对不对，一眼能看出来。 */
-function renderSourceStatus(settled) {
+/** 按当前来源过滤，重绘结果与状态文字。 */
+function applyFilter() {
+  hits = filterSource ? allHits.filter((hit) => hit.sourceId === filterSource) : allHits;
+  selected = -1;
+  renderResults();
+
+  document.querySelectorAll(".source-status .chip").forEach((chip) => {
+    chip.classList.toggle("active", (chip.dataset.sourceId || null) === filterSource);
+  });
+
+  if (!hits.length) {
+    setStatus(filterSource ? `${nameOfSource(filterSource)} 没有返回结果` : "没有结果，换个说法试试", "error");
+    return;
+  }
+
+  const duplicates = lastRun.rawTotal - allHits.length;
+  const summary = filterSource
+    ? `${nameOfSource(filterSource)} · ${hits.length} 条 · ${lastRun.ms} ms（全部来源共 ${allHits.length} 条）`
+    : `${hits.length} 条结果 · ${lastRun.ms} ms` +
+      (duplicates > 0 ? `（${lastRun.rawTotal} 条合并去重 ${duplicates} 条）` : "");
+  setStatus(summary, "info");
+}
+
+function nameOfSource(id) {
+  return lastRun.settled.find((item) => item.source.id === id)?.source.name || id;
+}
+
+/** 来源标签：既是状态也是过滤器，点一下只看这一家，再点回到全部。 */
+function renderChips(settled) {
   const box = document.createElement("div");
   box.className = "status extra source-status";
+
+  const all = document.createElement("button");
+  all.type = "button";
+  all.className = "chip all";
+  all.dataset.sourceId = "";
+  all.textContent = `全部 ${allHits.length}`;
+  all.addEventListener("click", () => {
+    filterSource = null;
+    applyFilter();
+  });
+  box.append(all);
+
   for (const item of settled) {
-    const chip = document.createElement("span");
-    chip.className = `chip ${item.ok ? "ok" : "bad"}`;
-    chip.textContent = item.ok
-      ? `${item.source.name} ${item.items.length} 条`
-      : `${item.source.name}：${item.error}`;
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.dataset.sourceId = item.source.id;
+    if (item.ok) {
+      chip.className = "chip ok";
+      chip.textContent = `${item.source.name} ${item.items.length} 条`;
+      chip.title = `只看 ${item.source.name}`;
+      chip.addEventListener("click", () => {
+        filterSource = filterSource === item.source.id ? null : item.source.id;
+        applyFilter();
+      });
+    } else {
+      chip.className = "chip bad";
+      chip.disabled = true;
+      chip.textContent = `${item.source.name}：${item.error}`;
+      chip.title = item.error;
+    }
     box.append(chip);
   }
+
   statusEl.after(box);
+
+  // 被过滤的源这一轮没结果时自动回到全部，避免空白页
+  if (filterSource && !settled.some((item) => item.ok && item.source.id === filterSource)) {
+    filterSource = null;
+  }
 }
 
 /** 移除上一轮搜索留下的附加提示（失败横幅等），避免多次搜索后堆积。 */
