@@ -166,9 +166,24 @@ async function search(query) {
   applyFilter();
 }
 
+/** 按当前来源取结果。
+ *  全部视图 → 合并去重后的全集；
+ *  单源视图 → 该源原始返回，不参与跨源去重（点了哪家就该看到哪家的全部结果）。
+ */
+function currentHits() {
+  if (!filterSource) return allHits;
+  const group = lastRun.settled.find((item) => item.ok && item.source.id === filterSource);
+  if (!group) return [];
+  return group.items.map((item) => ({
+    ...item,
+    sourceId: group.source.id,
+    sourceName: group.source.name
+  }));
+}
+
 /** 按当前来源过滤，重绘结果与状态文字。 */
 function applyFilter() {
-  hits = filterSource ? allHits.filter((hit) => hit.sourceId === filterSource) : allHits;
+  hits = currentHits();
   selected = -1;
   renderResults();
 
@@ -181,11 +196,15 @@ function applyFilter() {
     return;
   }
 
-  const duplicates = lastRun.rawTotal - allHits.length;
-  const summary = filterSource
-    ? `${nameOfSource(filterSource)} · ${hits.length} 条 · ${lastRun.ms} ms（全部来源共 ${allHits.length} 条）`
-    : `${hits.length} 条结果 · ${lastRun.ms} ms` +
+  let summary;
+  if (filterSource) {
+    const kept = allHits.filter((hit) => hit.sourceId === filterSource).length;
+    summary = `${nameOfSource(filterSource)} · ${hits.length} 条 · ${lastRun.ms} ms（去重后并入「全部」${kept} 条）`;
+  } else {
+    const duplicates = lastRun.rawTotal - allHits.length;
+    summary = `${hits.length} 条结果 · ${lastRun.ms} ms` +
       (duplicates > 0 ? `（${lastRun.rawTotal} 条合并去重 ${duplicates} 条）` : "");
+  }
   setStatus(summary, "info");
 }
 
