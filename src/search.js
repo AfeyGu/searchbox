@@ -6,6 +6,7 @@
 import { loadSources, loadKey } from "./core/preset.js";
 import { runSource } from "./core/request.js";
 import { interleave } from "./core/merge.js";
+import { readHistory, recordHistory, clearHistory } from "./core/history.js";
 
 const form = document.getElementById("form");
 const input = document.getElementById("q");
@@ -13,6 +14,9 @@ const clearButton = document.getElementById("clear");
 const hint = document.getElementById("hint");
 const statusEl = document.getElementById("status");
 const resultsEl = document.getElementById("results");
+const historyBox = document.getElementById("history");
+const historyList = document.getElementById("history-list");
+const historyClear = document.getElementById("history-clear");
 
 const RESULT_LIMIT = 40;
 const PER_SOURCE_LIMIT = 10;
@@ -126,6 +130,7 @@ async function search(query) {
   selected = -1;
   hits = [];
   allHits = [];
+  recordHistory(query);
   setMode("results");
   renderSkeleton();
   setStatus(`正在搜索「${query}」…`, "busy");
@@ -295,6 +300,29 @@ async function rememberKey(sourceId, apiKey) {
   await chrome.storage.local.set({ keys });
 }
 
+/* ---------- 最近搜索 ---------- */
+
+async function renderHistory() {
+  const items = (await readHistory()).slice(0, 8);
+  historyBox.hidden = !items.length;
+  historyList.replaceChildren();
+  for (const item of items) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "history-item";
+    chip.textContent = item.q;
+    chip.title = item.q;
+    chip.addEventListener("click", () => goTo(item.q));
+    historyList.append(chip);
+  }
+}
+
+historyClear.addEventListener("click", async () => {
+  await clearHistory();
+  await renderHistory();
+  input.focus();
+});
+
 /* ---------- 导航与交互 ---------- */
 
 function goTo(query, { replace = false } = {}) {
@@ -319,6 +347,7 @@ function goHome({ replace = false } = {}) {
   const url = new URL(location.href);
   url.search = "";
   history[replace ? "replaceState" : "pushState"](null, "", url);
+  renderHistory();
   input.focus();
 }
 
@@ -412,6 +441,7 @@ function boot() {
     return;
   }
   setMode("home");
+  renderHistory();
   input.focus();
 }
 
