@@ -274,6 +274,10 @@ clearButton.addEventListener("click", () => {
   goHome();
 });
 
+document.getElementById("settings").addEventListener("click", () => {
+  chrome.runtime.openOptionsPage();
+});
+
 window.addEventListener("popstate", () => {
   const query = new URLSearchParams(location.search).get("q") || "";
   input.value = query;

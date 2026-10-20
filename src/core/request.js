@@ -110,14 +110,16 @@ export async function runSource(source, query, options = {}) {
     const describe = (typeof apiMessage === "string" && apiMessage) || "";
 
     if (!response.ok) {
-      return { ok: false, error: describe ? `${response.status} · ${describe}` : `HTTP ${response.status}` };
+      return { ok: false, error: describe ? `${response.status} · ${describe}` : `HTTP ${response.status}`, raw };
     }
     if (!isOk(raw, spec)) {
-      return { ok: false, error: describe || "接口返回失败" };
+      return { ok: false, error: describe || "接口返回失败", raw };
     }
 
     const items = extractItems(raw, spec);
-    if (!items) return { ok: false, error: `未取到结果数组：${spec.itemsPath}` };
+    if (!items) {
+      return { ok: false, error: `未取到结果数组：${spec.itemsPath}`, raw };
+    }
 
     const newKey = spec.captureKeyPath ? getPath(raw, spec.captureKeyPath) : undefined;
     return { ok: true, items, ms: Math.round(performance.now() - started), newKey, raw };

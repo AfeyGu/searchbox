@@ -11,6 +11,7 @@
     "service_worker": "src/bg.js",
     "type": "module"
   },
+  "options_page": "src/options.html",
   "icons": {
     "16": "assets/icon-16.png",
     "32": "assets/icon-32.png",

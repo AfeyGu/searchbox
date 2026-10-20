@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>Searchbox 设置</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main class="wrap">
+    <h1>Searchbox 设置</h1>
+
+    <section class="block">
+      <h2>通用</h2>
+      <label class="row switch">
+        <input type="checkbox" id="newtab-toggle">
+        <span>
+          <strong>接管新标签页</strong>
+          <em>开启后 Ctrl+T 直接打开搜索页；关闭后新标签页恢复浏览器默认</em>
+        </span>
+      </label>
+    </section>
+
+    <section class="block">
+      <div class="block-head">
+        <h2>搜索源</h2>
+        <button id="btn-new" class="btn ghost" type="button">＋ 新增源</button>
+      </div>
+      <ul id="source-list" class="sources"></ul>
+      <p class="tip">内置源可以修改和禁用，改动可随时「恢复内置」。新增源需要为此授权访问它的接口地址。</p>
+    </section>
+
+    <section class="block" id="editor-block" hidden>
+      <div class="block-head">
+        <h2 id="editor-title">编辑</h2>
+        <div class="head-actions">
+          <button id="btn-reset" class="btn ghost" type="button" hidden>恢复内置</button>
+          <button id="btn-save" class="btn primary" type="button">保存</button>
+        </div>
+      </div>
+
+      <label class="field">
+        <span>API Key<em id="key-hint"></em></span>
+        <div class="inline">
+          <input id="key-input" type="password" spellcheck="false" autocomplete="off" placeholder="留空则不发送 Authorization">
+          <button id="btn-reveal" class="btn ghost" type="button">显示</button>
+        </div>
+      </label>
+
+      <label class="field">
+        <span>配置 JSON<em>占位符：{{query}} {{key}} {{limit}}</em></span>
+        <textarea id="editor" spellcheck="false" rows="20"></textarea>
+      </label>
+
+      <p id="save-status" class="status" hidden></p>
+    </section>
+
+    <section class="block" id="test-block" hidden>
+      <div class="block-head">
+        <h2>测试</h2>
+        <div class="head-actions">
+          <input id="test-query" type="text" value="electron" spellcheck="false" aria-label="测试查询词">
+          <button id="btn-test" class="btn primary" type="button">跑一次</button>
+        </div>
+      </div>
+      <p id="test-status" class="status" hidden></p>
+      <div class="panes">
+        <div class="pane">
+          <h3>原始响应</h3>
+          <pre id="test-raw" class="code">（还没跑）</pre>
+        </div>
+        <div class="pane">
+          <h3>解析结果</h3>
+          <ol id="test-parsed" class="parsed"></ol>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>
