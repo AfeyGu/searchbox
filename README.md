@@ -8,6 +8,8 @@
 
 1. 打开 `edge://extensions`（或 `chrome://extensions`），开启「开发人员模式」
 2. 「加载解压缩的扩展」→ 选择本仓库的 **`searchbox/`** 子目录
+
+> 仓库里 `searchbox/` 是扩展本体，`userscript/` 是同功能的油猴（Tampermonkey）移植版，见 [userscript/README.md](userscript/README.md)。
 3. `Ctrl+T` 打开新标签页，应看到搜索框
 
 ## 使用
