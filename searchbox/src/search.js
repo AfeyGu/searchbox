@@ -33,7 +33,7 @@ let selected = -1;
 let currentRun = 0;
 let filterSource = null;  // null = 全部来源
 let lastRun = { ms: 0, rawTotal: 0, settled: [] };
-let summary = { started: false, abort: null, hits: [], text: "", timer: null, hardTimer: null, stale: false };
+let summary = { started: false, abort: null, hits: [], text: "" };
 
 /* ---------- 小工具 ---------- */
 
@@ -156,10 +156,6 @@ async function search(query) {
   setStatus(`正在搜索「${query}」…`, "busy");
   resetSummary();
   const aiConfig = await loadAiConfig();
-  if (aiConfig) {
-    // 兜底：即使慢源一直不返回，也先拿已有结果开始总结
-    summary.hardTimer = setTimeout(() => startSummary(runId, query, aiConfig), 2600);
-  }
 
   // 不写 enabled 视为启用，与设置页的 `enabled !== false` 保持一致
   const sources = (await loadSources()).filter((source) => source.enabled !== false);
@@ -201,7 +197,11 @@ async function search(query) {
       return;
     }
     applyFilter({ pending });
-    if (aiConfig && allHits.length) scheduleSummary(runId, query, aiConfig);
+
+    // 等所有来源都返回（含失败/超时）再总结，避免用残缺的结果下结论
+    if (aiConfig && pending === 0 && allHits.length) {
+      startSummary(runId, query, aiConfig);
+    }
   };
 
   await Promise.all(
@@ -222,9 +222,7 @@ async function search(query) {
 
 function resetSummary() {
   if (summary.abort) summary.abort.abort();
-  clearTimeout(summary.timer);
-  clearTimeout(summary.hardTimer);
-  summary = { started: false, abort: null, hits: [], text: "", timer: null, hardTimer: null, stale: false };
+  summary = { started: false, abort: null, hits: [], text: "" };
   aiEl.hidden = true;
   aiEl.classList.remove("collapsed");
   aiBody.replaceChildren();
@@ -234,25 +232,10 @@ function resetSummary() {
   aiToggle.textContent = "收起";
 }
 
-function scheduleSummary(runId, query, aiConfig) {
-  if (summary.started) {
-    // 总结跑起来之后又有新结果进来：标记为可重算，不自动重跑
-    if (allHits.length > summary.hits.length && !summary.stale) {
-      summary.stale = true;
-      aiRetry.hidden = false;
-      if (aiMeta.className.indexOf("error") < 0) aiMeta.textContent = `${aiMeta.textContent} · 有新结果，可重新总结`;
-    }
-    return;
-  }
-  clearTimeout(summary.timer);
-  summary.timer = setTimeout(() => startSummary(runId, query, aiConfig), 800);
-}
-
 async function startSummary(runId, query, aiConfig) {
   if (runId !== currentRun || summary.started || !allHits.length) return;
 
   summary.started = true;
-  summary.stale = false;
   summary.text = "";
   summary.hits = allHits.slice(0, aiConfig.detail);
   aiEl.hidden = false;
@@ -345,7 +328,6 @@ function retrySummary() {
   summary.started = false;
   summary.text = "";
   summary.hits = [];
-  summary.stale = false;
   aiRetry.hidden = true;
   loadAiConfig().then((config) => {
     if (!config) return;
