@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>任意页面（浮层调试）</title>
+  <style>body { font-family: sans-serif; padding: 40px; line-height: 1.8; }</style>
+</head>
+<body>
+  <h1>这是一个普通页面</h1>
+  <p>按 <b>Alt+K</b> 应该弹出 Searchbox 搜索浮层；按 Esc 关闭。</p>
+  <p>页面自身样式与 DOM 不应被浮层影响。</p>
+  <script>
+    // 调试时把宿主页指向本地
+    window.__SEARCHBOX_HOST_URL__ = location.origin + "/dev/host-dev.html";
+  </script>
+  <script src="gm-mock.js"></script>
+  <script src="../dist/searchbox.user.js"></script>
+</body>
+</html>

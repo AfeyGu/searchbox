@@ -16,9 +16,25 @@
 
 首次使用：右下角「设置」→ 勾选要用的搜索源、填 API Key（AnySearch 可留空）；想用 AI 总结再填接口地址与模型。
 
+## 两种入口
+
+### 1）宿主页（完整版）
+
+打开 https://afeygu.github.io/searchbox/searchbox_script/host.html ，就是一个完整的搜索页。建议设为浏览器主页或收藏。
+
+### 2）浮层（任意页面 Alt+K）
+
+![浮层](../docs/overlay.png)
+
+在**任何网页**上按 **Alt+K** 唤起搜索浮层，`Esc` 或点背景关闭。也可以在 Tampermonkey 的菜单里点「打开 Searchbox 搜索」。
+
+实现方式是 iframe 承载宿主页——**不改动当前页面的 DOM 与样式**，因此不会和任何网站打架。代价是浮层每次打开都要加载一次宿主页（浏览器会缓存）。
+
 ## 它是什么形态
 
 宿主页：一个**空页面**（`host.html`），界面与逻辑全部由脚本注入。选这个形态是因为油猴没有"自己的页面"，也没有新标签页接管能力——只能借一个真实地址当宿主。
+
+浮层复用同一个宿主页：`host.html?embed=1` 会被嵌进 iframe，`Esc` 通过 `postMessage` 通知父页关闭（跨域下父页读不到子页按键）。
 
 ## 与扩展版的差异
 
@@ -31,6 +47,7 @@
 | 存储 | `chrome.storage.local` | `GM_setValue` / `GM_getValue`（用一个键存 JSON） |
 | 跨域请求 | host 权限 | `GM_xmlhttpRequest` + `@connect *` |
 | 设置界面 | 独立设置页 + 测试面板 | 页内悬浮面板（精简） |
+| 任意页面唤起 | ❌ | ✅ Alt+K 浮层 |
 
 ## 代码结构
 
@@ -70,6 +87,9 @@ python -m http.server 8791
 
 ## 已知限制
 
+- **`@match *://*/*`**：脚本会在所有页面加载（只挂一个快捷键监听，不渲染任何东西）。嫌侵入可以在 Tampermonkey 里改匹配规则
+- **Alt+K** 可能与个别站点冲突；冲突时可在 Tampermonkey 设置里改脚本或改这里的热键
+- 浮层是 iframe，**需要能访问 afeygu.github.io**（首次加载后浏览器会缓存）
 - `@connect *` 是宽授权，因为搜索源由用户配置；Tampermonkey 首次访问新域名会询问
 - 流式输出在旧版 Tampermonkey 上会退化成"等全部返回"
 - 设置面板比扩展版简单：源的接口地址用 JSON 编辑，没有单源测试面板
