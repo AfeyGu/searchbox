@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Searchbox
 // @namespace    https://github.com/AfeyGu/searchbox
-// @version      0.2.0
+// @version      0.3.0
 // @description  把 JSON 搜索 API 变成你自己的搜索结果页
 // @author       AfeyGu
 // @match        https://afeygu.github.io/searchbox/searchbox_script/host.html*
@@ -10,6 +10,7 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_registerMenuCommand
+// @grant        GM_openInTab
 // @connect      *
 // @run-at       document-idle
 // ==/UserScript==
@@ -472,117 +473,95 @@ async function openSettings(ctx) {
   });
 }
 
-/* ---- adapter: overlay.js ---- */
+/* ---- adapter: navigate.js ---- */
 /**
- * 浮层：在任意页面按 Alt+K 唤起搜索。
+ * 快捷键：任意页面按 Alt+K 打开搜索。
  *
- * 实现方式是「iframe 承载宿主页」——不改动当前页面的 DOM 与样式，
- * 把所有 UI 冲突挡在 iframe 边界之外。
- * 按 Esc 关闭由被嵌入的宿主页通过 postMessage 通知（跨域下父页读不到子页按键）。
+ * 行为：
+ *   - 普通页面：新标签页打开宿主页；有选中文字就带上（?q=）
+ *   - 宿主页内：直接把焦点放回搜索框
+ *
+ * 之所以跳转而不是浮层：浮层用 iframe 承载宿主页，打开时有一段空白加载、
+ * 且丢掉 Ctrl+F / 缩放 / 地址栏等原生能力。新标签页跳转没有这些问题，
+ * 原来的页面也不会被覆盖。
  */
 
 const HOST_URL = "https://afeygu.github.io/searchbox/searchbox_script/host.html";
-
-/** 调试时可以用全局变量把宿主页指到本地。 */
-function hostUrl() {
-  return globalThis.__SEARCHBOX_HOST_URL__ || HOST_URL;
-}
 const SHORTCUT_KEY = "k";
-const OVERLAY_ID = "searchbox-overlay";
+const MAX_SELECTION = 200;
 
-const OVERLAY_CSS = `
-#searchbox-overlay {
-  position: fixed; inset: 0; z-index: 2147483647;
-  display: flex; align-items: flex-start; justify-content: center;
-  padding-top: 8vh; box-sizing: border-box;
-}
-#searchbox-overlay .sb-overlay-backdrop {
-  position: absolute; inset: 0; background: rgba(15, 18, 22, 0.45);
-  backdrop-filter: blur(2px);
-}
-#searchbox-overlay .sb-overlay-frame {
-  position: relative; width: min(900px, 94vw); height: min(78vh, 820px);
-  border: 0; border-radius: 14px; background: #fff;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.32);
-}
-`;
-
-function ensureStyle() {
-  if (document.getElementById("searchbox-overlay-style")) return;
-  const style = document.createElement("style");
-  style.id = "searchbox-overlay-style";
-  style.textContent = OVERLAY_CSS;
-  (document.head || document.documentElement).append(style);
+function hostUrl(query) {
+  const url = new URL(globalThis.__SEARCHBOX_HOST_URL__ || HOST_URL);
+  if (query) url.searchParams.set("q", query);
+  return url.toString();
 }
 
-function closeOverlay() {
-  const box = document.getElementById(OVERLAY_ID);
-  if (box) box.remove();
+/** 取当前选区，压成一行并截断。 */
+function currentSelection() {
+  try {
+    const raw = window.getSelection ? String(window.getSelection()) : "";
+    return raw.replace(/\s+/g, " ").trim().slice(0, MAX_SELECTION);
+  } catch (error) {
+    return "";
+  }
 }
 
-function openOverlay() {
-  if (document.getElementById(OVERLAY_ID)) return;
-  if (!document.body) return;
-  ensureStyle();
-
-  const box = document.createElement("div");
-  box.id = OVERLAY_ID;
-
-  const backdrop = document.createElement("div");
-  backdrop.className = "sb-overlay-backdrop";
-  backdrop.addEventListener("click", closeOverlay);
-
-  const frame = document.createElement("iframe");
-  frame.className = "sb-overlay-frame";
-  frame.src = hostUrl() + (hostUrl().includes("?") ? "&" : "?") + "embed=1";
-  frame.setAttribute("allow", "clipboard-write");
-
-  box.append(backdrop, frame);
-  document.body.append(box);
-  frame.focus();
+/** 打开搜索页：优先用 GM_openInTab（不受弹窗拦截影响），退化为 window.open。 */
+function openSearch(query) {
+  const url = hostUrl(query);
+  if (typeof GM_openInTab === "function") {
+    GM_openInTab(url, { active: true, insert: true, setParent: true });
+    return url;
+  }
+  window.open(url, "_blank", "noopener");
+  return url;
 }
 
-/** 宿主页被嵌入时，把自己的按键意图转告父页。 */
-function wireEmbedClose() {
-  document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
-    try {
-      window.parent.postMessage({ type: "searchbox:close" }, "*");
-    } catch (error) {
-      /* 忽略 */
-    }
-  });
+function isHotkey(event) {
+  return event.altKey && !event.ctrlKey && !event.metaKey && String(event.key).toLowerCase() === SHORTCUT_KEY;
 }
 
-/** 在普通页面上安装快捷键与浮层。 */
-function installOverlay() {
-  window.addEventListener("message", (event) => {
-    if (event.data && event.data.type === "searchbox:close") closeOverlay();
-  });
-
+/** 普通页面：Alt+K 新标签打开宿主页，带上选中的文字。 */
+function installHotkey() {
   document.addEventListener(
     "keydown",
     (event) => {
-      if (!event.altKey || event.ctrlKey || event.metaKey) return;
-      if (String(event.key).toLowerCase() !== SHORTCUT_KEY) return;
+      if (!isHotkey(event)) return;
       event.preventDefault();
       event.stopPropagation();
-      openOverlay();
+      openSearch(currentSelection());
     },
     true
   );
 
   if (typeof GM_registerMenuCommand === "function") {
-    GM_registerMenuCommand("打开 Searchbox 搜索（Alt+K）", openOverlay);
+    GM_registerMenuCommand("用 Searchbox 搜索（Alt+K）", () => openSearch(currentSelection()));
   }
 }
 
-/** 被嵌入在浮层里时（同域的调试环境也会走这里）。 */
-function isEmbedded() {
-  try {
-    return window.top !== window.self;
-  } catch (error) {
-    return true;
+/** 宿主页内：Alt+K 把焦点放回搜索框。 */
+function installFocusShortcut() {
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (!isHotkey(event)) return;
+      const input = document.getElementById("q");
+      if (!input) return;
+      event.preventDefault();
+      input.focus();
+      input.select();
+    },
+    true
+  );
+
+  if (typeof GM_registerMenuCommand === "function") {
+    GM_registerMenuCommand("聚焦搜索框（Alt+K）", () => {
+      const input = document.getElementById("q");
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    });
   }
 }
 
@@ -1962,22 +1941,15 @@ function isHostPage() {
 }
 
 function boot() {
-  // 嵌入式（浮层里的 iframe）：正常渲染，并把 Esc 转告父页
-  if (isEmbedded()) {
-    if (!mountShell(SB_CSS)) return;
-    __app(chromeStub, gmFetch, platform);
-    wireEmbedClose();
-    return;
-  }
-
-  // 宿主页：正常渲染
+  // 宿主页：渲染搜索页，Alt+K 聚焦搜索框
   if (isHostPage()) {
     if (!mountShell(SB_CSS)) return;
     __app(chromeStub, gmFetch, platform);
+    installFocusShortcut();
     return;
   }
 
-  // 其他页面：只装一个快捷键，按 Alt+K 弹出浮层
-  installOverlay();
+  // 其他页面：只挂快捷键，Alt+K 新标签打开宿主页（带选中文字）
+  installHotkey();
 }
 })();
