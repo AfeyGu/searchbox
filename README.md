@@ -2,6 +2,8 @@
 
 把 JSON 搜索 API 变成浏览器里的搜索结果页。插件是解释器，搜索源是可配置数据。
 
+![Searchbox 搜索结果页](docs/screenshot.png)
+
 ## 安装
 
 1. 打开 `edge://extensions`（或 `chrome://extensions`），开启「开发人员模式」
@@ -36,6 +38,10 @@
 ## 配置编写指南
 
 一个"搜索源"就是两件事：**怎么发一次请求** + **怎么从响应里取出结果**。全程不写代码。
+
+设置页长这样：
+
+![Searchbox 设置页](docs/settings.png)
 
 ### 一个源由哪些字段组成
 
