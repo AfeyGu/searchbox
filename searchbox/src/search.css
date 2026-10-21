@@ -377,3 +377,72 @@ body[data-mode="home"] .status:empty { display: none; }
 .settings:hover { opacity: 1; color: var(--fg); border-color: var(--accent); }
 
 body[data-mode="home"] .settings { opacity: 0.7; }
+
+/* AI 总结卡片：独立于结果列表，失败不影响结果展示 */
+
+.ai {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--hover);
+}
+
+.ai-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.ai-badge {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.ai-meta {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-meta.error { color: var(--err-fg); }
+
+.ai-action {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.ai-action:hover { background: var(--hover); }
+
+.ai-body { font-size: 15px; line-height: 1.7; }
+
+.ai-body p { margin: 0 0 10px; }
+
+.ai-body p:last-child { margin-bottom: 0; }
+
+.ai-body .ai-placeholder { color: var(--muted); }
+
+.ai-cite {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.92em;
+  vertical-align: super;
+}
+
+.ai-cite:hover { text-decoration: underline; }
+
+.ai.collapsed .ai-body { display: none; }
+
+@media (prefers-color-scheme: dark) {
+  .ai { background: var(--card); border-color: var(--line); }
+}

@@ -29,6 +29,42 @@
     </section>
 
     <section class="block">
+      <h2>AI 总结</h2>
+      <p class="tip">填好接口地址和模型名后，搜索时会在结果上方自动生成总结。留空则不启用，不会发起任何请求。</p>
+
+      <label class="field">
+        <span>接口地址<em>OpenAI 兼容的 chat/completions</em></span>
+        <input id="ai-url" type="text" spellcheck="false" autocomplete="off" placeholder="https://open.bigmodel.cn/api/paas/v4/chat/completions">
+      </label>
+
+      <label class="field">
+        <span>模型名</span>
+        <input id="ai-model" type="text" spellcheck="false" autocomplete="off" placeholder="glm-4.7-flash">
+      </label>
+
+      <label class="field">
+        <span>API Key<em>本地模型（如 Ollama）可留空</em></span>
+        <input id="ai-key" type="password" spellcheck="false" autocomplete="off" placeholder="留空则不发送 Authorization">
+      </label>
+
+      <label class="field">
+        <span>提示词<em>系统提示，留空用默认</em></span>
+        <textarea id="ai-prompt" rows="3" spellcheck="false" placeholder="留空则使用默认提示词"></textarea>
+      </label>
+
+      <label class="field limit-field">
+        <span>送给模型的结果条数<em>1–30，越多越慢也越贵</em></span>
+        <input id="ai-detail" type="number" min="1" max="30" step="1" value="10">
+      </label>
+
+      <div class="head-actions">
+        <button id="ai-test" class="btn ghost" type="button">测试</button>
+        <button id="ai-save" class="btn primary" type="button">保存</button>
+      </div>
+      <p id="ai-status" class="status" hidden></p>
+    </section>
+
+    <section class="block">
       <div class="block-head">
         <h2>搜索源</h2>
         <button id="btn-new" class="btn ghost" type="button">＋ 新增源</button>

@@ -7,6 +7,7 @@ import { fillString, fillValue, originsOf } from "./core/request.js";
 import { getPath, pickFirst, isOk, extractItems, extractHtmlItems } from "./core/extract.js";
 import { normalizeUrl, interleave } from "./core/merge.js";
 import { isFresh, MAX_AGE_MS } from "./core/history.js";
+import { buildMessages, createSseParser, DEFAULT_DETAIL } from "./core/ai.js";
 import { clampLimit, DEFAULT_PER_SOURCE_LIMIT, MIN_PER_SOURCE_LIMIT, MAX_PER_SOURCE_LIMIT } from "./core/settings.js";
 
 const tests = [];
@@ -157,6 +158,86 @@ test("extractHtmlItems：缺少 items 选择器返回 null", () => {
 test("extractHtmlItems：匹配不到条目返回空数组", () => {
   const items = extractHtmlItems(parseHtml("<p>nothing</p>"), { items: "li.r", fields: { url: "a@href" } });
   eq(items, []);
+});
+
+/* ---------- AI 总结 ---------- */
+
+const LF = String.fromCharCode(10);
+const fakeHits = (n) => Array.from({ length: n }, (_, i) => ({
+  title: `标题${i + 1}`, url: `https://site${i + 1}.com/p`, snippet: `摘要${i + 1}`
+}));
+
+test("buildMessages：两条消息，编号从 1 开始", () => {
+  const msgs = buildMessages({ query: "electron", hits: fakeHits(3), detail: 3 });
+  eq(msgs.length, 2);
+  eq(msgs[0].role, "system");
+  eq(msgs[1].role, "user");
+  eq(msgs[1].content.includes("[1] 标题1"), true);
+  eq(msgs[1].content.includes("[3] 标题3"), true);
+  eq(msgs[1].content.includes("用户查询：electron"), true);
+});
+
+test("buildMessages：条数受 detail 限制", () => {
+  const msgs = buildMessages({ query: "q", hits: fakeHits(8), detail: 3 });
+  eq(msgs[1].content.includes("[3]"), true);
+  eq(msgs[1].content.includes("[4]"), false);
+});
+
+test("buildMessages：摘要截断到 200 字", () => {
+  const long = "字".repeat(500);
+  const msgs = buildMessages({ query: "q", hits: [{ title: "t", url: "https://a.com", snippet: long }], detail: 1 });
+  eq(msgs[1].content.includes("字".repeat(200)), true);
+  eq(msgs[1].content.includes("字".repeat(201)), false);
+});
+
+test("buildMessages：没有标题时退回域名", () => {
+  const msgs = buildMessages({ query: "q", hits: [{ title: "", url: "https://www.example.com/x", snippet: "" }], detail: 1 });
+  eq(msgs[1].content.includes("example.com"), true);
+});
+
+test("buildMessages：自定义提示词生效，留空用默认", () => {
+  eq(buildMessages({ query: "q", hits: fakeHits(1), prompt: "自定义" })[0].content, "自定义");
+  eq(buildMessages({ query: "q", hits: fakeHits(1), prompt: "" })[0].content.length > 10, true);
+});
+
+test("createSseParser：跨块拼接并逐条回调", () => {
+  let out = "";
+  const parser = createSseParser((delta) => { out += delta; });
+  parser.push(`data: {"choices":[{"delta":{"content":"你"}}]}` + LF);
+  parser.push(`data: {"choices":[{"delta":{"content":"好"}}]}` + LF);
+  eq(out, "你好");
+  eq(parser.finished, false);
+});
+
+test("createSseParser：一个块里包含多行", () => {
+  let out = "";
+  const parser = createSseParser((delta) => { out += delta; });
+  parser.push(`data: {"choices":[{"delta":{"content":"A"}}]}` + LF + `data: {"choices":[{"delta":{"content":"B"}}]}` + LF);
+  eq(out, "AB");
+});
+
+test("createSseParser：收到 [DONE] 标记结束", () => {
+  let out = "";
+  const parser = createSseParser((delta) => { out += delta; });
+  parser.push(`data: {"choices":[{"delta":{"content":"x"}}]}` + LF + "data: [DONE]" + LF);
+  eq(out, "x");
+  eq(parser.finished, true);
+});
+
+test("createSseParser：忽略非 JSON 与空行", () => {
+  let out = "";
+  const parser = createSseParser((delta) => { out += delta; });
+  parser.push(LF + ": ping" + LF + "data: not-json" + LF + `data: {"choices":[{"delta":{"content":"ok"}}]}` + LF);
+  eq(out, "ok");
+});
+
+test("createSseParser：flush 处理最后半行", () => {
+  let out = "";
+  const parser = createSseParser((delta) => { out += delta; });
+  parser.push(`data: {"choices":[{"delta":{"content":"尾"}}]}`);
+  eq(out, "");
+  parser.flush();
+  eq(out, "尾");
 });
 
 /* ---------- 合并 ---------- */

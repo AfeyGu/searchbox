@@ -13,6 +13,7 @@
 import { PRESET_SOURCES } from "./core/preset.js";
 import { runSource, originsOf } from "./core/request.js";
 import { loadPerSourceLimit, savePerSourceLimit, MAX_PER_SOURCE_LIMIT, MIN_PER_SOURCE_LIMIT } from "./core/settings.js";
+import { runSummary, aiOriginsOf, DEFAULT_PROMPT, DEFAULT_DETAIL } from "./core/ai.js";
 
 const els = {
   newtab: document.getElementById("newtab-toggle"),
@@ -35,7 +36,15 @@ const els = {
   test: document.getElementById("btn-test"),
   testStatus: document.getElementById("test-status"),
   testRaw: document.getElementById("test-raw"),
-  testParsed: document.getElementById("test-parsed")
+  testParsed: document.getElementById("test-parsed"),
+  aiUrl: document.getElementById("ai-url"),
+  aiModel: document.getElementById("ai-model"),
+  aiKey: document.getElementById("ai-key"),
+  aiPrompt: document.getElementById("ai-prompt"),
+  aiDetail: document.getElementById("ai-detail"),
+  aiSave: document.getElementById("ai-save"),
+  aiTest: document.getElementById("ai-test"),
+  aiStatus: document.getElementById("ai-status")
 };
 
 const state = {
@@ -53,6 +62,13 @@ async function load() {
   state.keys = data.keys;
   els.newtab.checked = data.newtabTakeover !== false;
   els.limit.value = await loadPerSourceLimit();
+
+  const ai = (await chrome.storage.local.get({ ai: {} })).ai || {};
+  els.aiUrl.value = ai.url || "";
+  els.aiModel.value = ai.model || "";
+  els.aiPrompt.value = ai.prompt || "";
+  els.aiDetail.value = ai.detail || DEFAULT_DETAIL;
+  els.aiKey.value = state.keys.ai || "";
 }
 
 async function persist() {
@@ -416,3 +432,89 @@ els.testQuery.addEventListener("keydown", (event) => {
   const firstId = PRESET_SOURCES[0]?.id;
   if (firstId) select(firstId);
 })();
+
+/* ---------- AI 总结配置 ---------- */
+
+function readAiForm() {
+  return {
+    url: els.aiUrl.value.trim(),
+    model: els.aiModel.value.trim(),
+    prompt: els.aiPrompt.value.trim(),
+    detail: Math.min(30, Math.max(1, Number(els.aiDetail.value) || DEFAULT_DETAIL))
+  };
+}
+
+function showAiStatus(text, kind = "info") {
+  els.aiStatus.textContent = text;
+  els.aiStatus.className = `status ${kind}`;
+  els.aiStatus.hidden = false;
+}
+
+async function saveAi() {
+  const config = readAiForm();
+  const key = els.aiKey.value.trim();
+
+  if (!config.url && !config.model) {
+    await chrome.storage.local.set({ ai: {}, keys: { ...state.keys, ai: "" } });
+    showAiStatus("已清空：不启用 AI 总结", "ok");
+    return;
+  }
+  if (!config.url || !config.model) {
+    showAiStatus("接口地址和模型名都要填（只填一个不会生效）", "error");
+    return;
+  }
+  try {
+    new URL(config.url);
+  } catch {
+    showAiStatus("接口地址不是合法 URL", "error");
+    return;
+  }
+
+  // 必须在用户手势内同步发起权限申请
+  const origins = aiOriginsOf(config).map((origin) => `${origin}/*`);
+  const request = origins.length
+    ? chrome.permissions.request({ origins }).catch(() => false)
+    : Promise.resolve(true);
+  const granted = await request;
+
+  state.keys.ai = key;
+  await chrome.storage.local.set({ ai: config, keys: state.keys });
+
+  showAiStatus(
+    granted ? "已保存：下次搜索会在结果上方自动生成总结" : "已保存，但没有获得接口权限，总结会失败",
+    granted ? "ok" : "warn"
+  );
+}
+
+async function testAi() {
+  const config = { ...readAiForm(), key: els.aiKey.value.trim(), name: "" };
+  if (!config.url || !config.model) {
+    showAiStatus("先填接口地址和模型名", "error");
+    return;
+  }
+
+  showAiStatus("测试中…", "busy");
+  els.aiTest.disabled = true;
+  let text = "";
+  try {
+    const result = await runSummary({
+      config,
+      query: "测试查询",
+      hits: [
+        { title: "示例结果一", url: "https://example.com/a", snippet: "这是一段示例摘要，用于验证接口是否可用。" },
+        { title: "示例结果二", url: "https://example.com/b", snippet: "第二条示例摘要。" }
+      ],
+      onDelta: (delta) => {
+        text += delta;
+      }
+    });
+    showAiStatus(`成功（${result.ms} ms）：${text.slice(0, 80) || "（模型没有返回文本）"}`, "ok");
+  } catch (error) {
+    showAiStatus(`失败：${error.message}`, "error");
+  } finally {
+    els.aiTest.disabled = false;
+  }
+}
+
+els.aiSave.addEventListener("click", saveAi);
+els.aiTest.addEventListener("click", testAi);

@@ -6,6 +6,7 @@
 import { loadSources, loadKey } from "./core/preset.js";
 import { runSource } from "./core/request.js";
 import { interleave } from "./core/merge.js";
+import { loadAiConfig, runSummary } from "./core/ai.js";
 import { readHistory, recordHistory, clearHistory } from "./core/history.js";
 import { loadPerSourceLimit } from "./core/settings.js";
 
@@ -18,6 +19,11 @@ const resultsEl = document.getElementById("results");
 const historyBox = document.getElementById("history");
 const historyList = document.getElementById("history-list");
 const historyClear = document.getElementById("history-clear");
+const aiEl = document.getElementById("ai");
+const aiMeta = document.getElementById("ai-meta");
+const aiBody = document.getElementById("ai-body");
+const aiRetry = document.getElementById("ai-retry");
+const aiToggle = document.getElementById("ai-toggle");
 
 const RESULT_LIMIT = 40;   // 合并去重后的总上限（不对外配置）
 
@@ -27,6 +33,7 @@ let selected = -1;
 let currentRun = 0;
 let filterSource = null;  // null = 全部来源
 let lastRun = { ms: 0, rawTotal: 0, settled: [] };
+let summary = { started: false, abort: null, hits: [], text: "", timer: null, hardTimer: null, stale: false };
 
 /* ---------- 小工具 ---------- */
 
@@ -147,6 +154,12 @@ async function search(query) {
   setMode("results");
   renderSkeleton();
   setStatus(`正在搜索「${query}」…`, "busy");
+  resetSummary();
+  const aiConfig = await loadAiConfig();
+  if (aiConfig) {
+    // 兜底：即使慢源一直不返回，也先拿已有结果开始总结
+    summary.hardTimer = setTimeout(() => startSummary(runId, query, aiConfig), 2600);
+  }
 
   // 不写 enabled 视为启用，与设置页的 `enabled !== false` 保持一致
   const sources = (await loadSources()).filter((source) => source.enabled !== false);
@@ -188,6 +201,7 @@ async function search(query) {
       return;
     }
     applyFilter({ pending });
+    if (aiConfig && allHits.length) scheduleSummary(runId, query, aiConfig);
   };
 
   await Promise.all(
@@ -200,6 +214,151 @@ async function search(query) {
     })
   );
 }
+
+
+/* ---------- AI 总结 ----------
+ * 独立于搜索链路：结果先渲染，总结在后台跑，失败只影响这一块卡片。
+ */
+
+function resetSummary() {
+  if (summary.abort) summary.abort.abort();
+  clearTimeout(summary.timer);
+  clearTimeout(summary.hardTimer);
+  summary = { started: false, abort: null, hits: [], text: "", timer: null, hardTimer: null, stale: false };
+  aiEl.hidden = true;
+  aiEl.classList.remove("collapsed");
+  aiBody.replaceChildren();
+  aiMeta.textContent = "";
+  aiMeta.className = "ai-meta";
+  aiRetry.hidden = true;
+  aiToggle.textContent = "收起";
+}
+
+function scheduleSummary(runId, query, aiConfig) {
+  if (summary.started) {
+    // 总结跑起来之后又有新结果进来：标记为可重算，不自动重跑
+    if (allHits.length > summary.hits.length && !summary.stale) {
+      summary.stale = true;
+      aiRetry.hidden = false;
+      if (aiMeta.className.indexOf("error") < 0) aiMeta.textContent = `${aiMeta.textContent} · 有新结果，可重新总结`;
+    }
+    return;
+  }
+  clearTimeout(summary.timer);
+  summary.timer = setTimeout(() => startSummary(runId, query, aiConfig), 800);
+}
+
+async function startSummary(runId, query, aiConfig) {
+  if (runId !== currentRun || summary.started || !allHits.length) return;
+
+  summary.started = true;
+  summary.stale = false;
+  summary.text = "";
+  summary.hits = allHits.slice(0, aiConfig.detail);
+  aiEl.hidden = false;
+  aiRetry.hidden = true;
+  aiMeta.className = "ai-meta";
+  aiMeta.textContent = `思考中… · 基于 ${summary.hits.length} 条结果`;
+  aiBody.innerHTML = '<p class="ai-placeholder">正在总结…</p>';
+
+  const controller = new AbortController();
+  summary.abort = controller;
+
+  try {
+    const result = await runSummary({
+      config: aiConfig,
+      query,
+      hits: summary.hits,
+      signal: controller.signal,
+      onDelta: (delta) => {
+        if (runId !== currentRun) return;
+        summary.text += delta;
+        renderSummaryBody();
+      }
+    });
+    if (runId !== currentRun) return;
+    aiMeta.textContent = `基于 ${summary.hits.length} 条结果 · ${aiConfig.model} · ${result.ms} ms`;
+    if (!summary.text) {
+      aiMeta.className = "ai-meta error";
+      aiMeta.textContent = "模型没有返回内容";
+      aiRetry.hidden = false;
+    }
+  } catch (error) {
+    if (controller.signal.aborted || runId !== currentRun) return;
+    aiMeta.className = "ai-meta error";
+    aiMeta.textContent = `AI 总结失败：${error.message}`;
+    aiBody.replaceChildren();
+    aiRetry.hidden = false;
+  }
+}
+
+/** 极简渲染：段落、**加粗**、[n] 引用跳转。 */
+function renderSummaryBody() {
+  const text = summary.text.trim();
+  aiBody.replaceChildren();
+  if (!text) {
+    aiBody.innerHTML = '<p class="ai-placeholder">正在总结…</p>';
+    return;
+  }
+
+  const token = /(\[[0-9]+\]|[*][*][^*]+[*][*])/g;
+
+  for (const para of text.split(String.fromCharCode(10) + String.fromCharCode(10))) {
+    const p = document.createElement("p");
+    let last = 0;
+    let match;
+    token.lastIndex = 0;
+    while ((match = token.exec(para)) !== null) {
+      if (match.index > last) p.append(document.createTextNode(para.slice(last, match.index)));
+      const piece = match[0];
+      if (piece.charAt(0) === "[") {
+        const index = Number(piece.slice(1, -1));
+        const hit = summary.hits[index - 1];
+        if (hit) {
+          const link = document.createElement("a");
+          link.className = "ai-cite";
+          link.href = hit.url;
+          link.textContent = piece;
+          link.target = "_blank";
+          link.rel = "noreferrer";
+          p.append(link);
+        } else {
+          p.append(document.createTextNode(piece));
+        }
+      } else {
+        const strong = document.createElement("strong");
+        strong.textContent = piece.slice(2, -2);
+        p.append(strong);
+      }
+      last = match.index + piece.length;
+    }
+    if (last < para.length) p.append(document.createTextNode(para.slice(last)));
+    aiBody.append(p);
+  }
+}
+
+/** 手动重跑（点「重新总结」）。 */
+function retrySummary() {
+  const query = input.value.trim();
+  if (!query) return;
+  const runId = currentRun;
+  summary.started = false;
+  summary.text = "";
+  summary.hits = [];
+  summary.stale = false;
+  aiRetry.hidden = true;
+  loadAiConfig().then((config) => {
+    if (!config) return;
+    startSummary(runId, query, config);
+  });
+}
+
+aiToggle.addEventListener("click", () => {
+  const collapsed = aiEl.classList.toggle("collapsed");
+  aiToggle.textContent = collapsed ? "展开" : "收起";
+});
+
+aiRetry.addEventListener("click", retrySummary);
 
 /** 按当前来源取结果。
  *  全部视图 → 合并去重后的全集；
