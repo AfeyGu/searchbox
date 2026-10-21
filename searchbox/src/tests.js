@@ -3,8 +3,8 @@
  * 只测无副作用的函数（不碰 chrome.* / 不碰 DOM），所以能在这里安心执行。
  */
 
-import { fillString, fillValue } from "./core/request.js";
-import { getPath, pickFirst, isOk, extractItems } from "./core/extract.js";
+import { fillString, fillValue, originsOf } from "./core/request.js";
+import { getPath, pickFirst, isOk, extractItems, extractHtmlItems } from "./core/extract.js";
 import { normalizeUrl, interleave } from "./core/merge.js";
 import { isFresh, MAX_AGE_MS } from "./core/history.js";
 import { clampLimit, DEFAULT_PER_SOURCE_LIMIT, MIN_PER_SOURCE_LIMIT, MAX_PER_SOURCE_LIMIT } from "./core/settings.js";
@@ -56,6 +56,17 @@ test("fillValue：嵌套对象里的失败字段被单独丢弃", () => {
   eq(result.value, { outer: { keep: "q" } });
 });
 
+test("originsOf：字符串与数组都归一成 origin 列表", () => {
+  eq(originsOf({ origin: "https://a.com/x" }), ["https://a.com"]);
+  eq(originsOf({ origin: ["https://a.com/x", "https://cn.b.com/y"] }), ["https://a.com", "https://cn.b.com"]);
+  eq(originsOf({ request: { url: "https://c.com/p?q=1" } }), ["https://c.com"]);
+  eq(originsOf({}), []);
+});
+
+test("originsOf：重复域名去重", () => {
+  eq(originsOf({ origins: ["https://a.com/1", "https://a.com/2"] }), ["https://a.com"]);
+});
+
 /* ---------- 响应解析 ---------- */
 
 test("getPath：按点号取深层字段", () => {
@@ -100,6 +111,52 @@ test("extractItems：丢掉没有链接的条目", () => {
   const items = extractItems(raw, { itemsPath: "hits", fields: { title: ["title"], url: ["url"] } });
   eq(items.length, 1);
   eq(items[0].url, "https://b.com");
+});
+
+/* ---------- HTML 源解析 ---------- */
+
+const parseHtml = (source) => new DOMParser().parseFromString(source, "text/html");
+
+test("extractHtmlItems：按选择器取标题/链接/摘要", () => {
+  const doc = parseHtml(`<ul>
+    <li class="r"><h2><a href="https://a.com/x">标题 A</a></h2><p class="s">摘要 A</p></li>
+    <li class="r"><h2><a href="/rel/y">标题 B</a></h2><p class="s">摘要 B</p></li>
+  </ul>`);
+  const items = extractHtmlItems(
+    doc,
+    { items: "li.r", fields: { title: "h2 a", url: "h2 a@href", snippet: "p.s" } },
+    "https://example.com/search"
+  );
+  eq(items.length, 2);
+  eq(items[0].title, "标题 A");
+  eq(items[0].url, "https://a.com/x");
+  eq(items[1].url, "https://example.com/rel/y", "相对链接应补成绝对地址");
+});
+
+test("extractHtmlItems：字段支持选择器数组兜底", () => {
+  const doc = parseHtml('<li class="r"><a href="https://a.com">T</a><p class="s">摘要</p></li>');
+  const items = extractHtmlItems(
+    doc,
+    { items: "li.r", fields: { title: ["h2 a", "a"], url: "a@href", snippet: ["p.none", "p.s"] } },
+    "https://example.com"
+  );
+  eq(items[0].title, "T");
+  eq(items[0].snippet, "摘要");
+});
+
+test("extractHtmlItems：压缩多余空白", () => {
+  const doc = parseHtml(`<li class="r"><a href="https://a.com">  多行` + String.fromCharCode(10) + `  标题  </a></li>`);
+  const items = extractHtmlItems(doc, { items: "li.r", fields: { url: "a@href", title: "a" } }, "https://a.com");
+  eq(items[0].title, "多行 标题");
+});
+
+test("extractHtmlItems：缺少 items 选择器返回 null", () => {
+  eq(extractHtmlItems(parseHtml("<div></div>"), { fields: {} }), null);
+});
+
+test("extractHtmlItems：匹配不到条目返回空数组", () => {
+  const items = extractHtmlItems(parseHtml("<p>nothing</p>"), { items: "li.r", fields: { url: "a@href" } });
+  eq(items, []);
 });
 
 /* ---------- 合并 ---------- */

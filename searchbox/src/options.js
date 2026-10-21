@@ -11,7 +11,7 @@
  */
 
 import { PRESET_SOURCES } from "./core/preset.js";
-import { runSource } from "./core/request.js";
+import { runSource, originsOf } from "./core/request.js";
 import { loadPerSourceLimit, savePerSourceLimit, MAX_PER_SOURCE_LIMIT, MIN_PER_SOURCE_LIMIT } from "./core/settings.js";
 
 const els = {
@@ -196,14 +196,6 @@ function selectNew() {
 
 /* ---------- 校验 ---------- */
 
-function originOf(config) {
-  const raw = config?.origin || config?.request?.url || "";
-  try {
-    return new URL(raw).origin;
-  } catch {
-    return "";
-  }
-}
 
 function validate(config) {
   const problems = [];
@@ -211,8 +203,15 @@ function validate(config) {
   if (!config.name) problems.push("缺少 name");
   if (!config.request?.url) problems.push("缺少 request.url");
   else if (!/^https?:/i.test(config.request.url)) problems.push("request.url 必须是 http(s) 地址");
-  if (!config.response?.itemsPath) problems.push("缺少 response.itemsPath");
   const fields = config.response?.fields || {};
+
+  if (config.type === "html") {
+    if (!config.response?.items) problems.push("HTML 源缺少 response.items 选择器");
+    if (!fields.url) problems.push("HTML 源缺少 response.fields.url 选择器");
+    return problems;
+  }
+
+  if (!config.response?.itemsPath) problems.push("缺少 response.itemsPath");
   if (!Array.isArray(fields.url) || !fields.url.length) problems.push("response.fields.url 需要一个取值路径");
   if (fields.title && !Array.isArray(fields.title)) problems.push("response.fields.title 必须是数组");
   if (fields.snippet && !Array.isArray(fields.snippet)) problems.push("response.fields.snippet 必须是数组");
@@ -255,9 +254,9 @@ async function saveInner() {
   }
 
   // 必须在用户手势内同步发起，所以放在任何 await 之前
-  const origin = originOf(config);
-  const request = origin
-    ? chrome.permissions.request({ origins: [`${origin}/*`] }).catch(() => false)
+  const origins = originsOf(config);
+  const request = origins.length
+    ? chrome.permissions.request({ origins: origins.map((origin) => `${origin}/*`) }).catch(() => false)
     : Promise.resolve(true);
   const granted = await request;
 
@@ -272,7 +271,7 @@ async function saveInner() {
   renderList();
 
   if (!granted) {
-    showSaveStatus(`已保存，但没有获得 ${origin} 的访问权限，请求会被拦截`, "warn");
+    showSaveStatus(`已保存，但没有获得 ${origins.join("、")} 的访问权限，请求会被拦截`, "warn");
   } else {
     showSaveStatus(`已保存：${config.name}`, "ok");
   }
@@ -356,7 +355,9 @@ async function runTest() {
 
   const result = await runSource(config, query, { limit: 5, key: els.key.value.trim() });
 
-  if (result.raw !== undefined) {
+  if (typeof result.raw === "string") {
+    els.testRaw.textContent = result.raw.slice(0, 30000);   // HTML 源直接显示原文
+  } else if (result.raw !== undefined) {
     els.testRaw.textContent = JSON.stringify(result.raw, null, 2).slice(0, 30000);
   } else {
     els.testRaw.textContent = "（没有拿到可解析的响应体）";
@@ -364,6 +365,15 @@ async function runTest() {
 
   if (!result.ok) {
     setTestStatus(`失败：${result.error}`, "error");
+    return;
+  }
+  if (!result.items.length) {
+    setTestStatus(
+      config.type === "html"
+        ? "选择器匹配到 0 条：可能页面这次没有结果，也可能选择器已经失效"
+        : "请求成功，但结果数组是空的",
+      "warn"
+    );
     return;
   }
   setTestStatus(`成功：解析到 ${result.items.length} 条 · ${result.ms} ms`, "ok");

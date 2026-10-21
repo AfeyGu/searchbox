@@ -8,7 +8,7 @@
  *     - body 顶层字段省略 → 例如 Tavily 没填 key 时请求里的 api_key 不出现
  */
 
-import { getPath, isOk, extractItems } from "./extract.js";
+import { getPath, isOk, extractItems, extractHtmlItems } from "./extract.js";
 
 const PLACEHOLDER = /\{\{\s*(\w+)\s*\}\}/g;
 const WHOLE_PLACEHOLDER = /^\{\{\s*(\w+)\s*\}\}$/;
@@ -63,15 +63,22 @@ export function fillValue(value, vars) {
 }
 
 /**
- * 取源的接口 origin，用于权限检查与提示。
+ * 取源需要授权的 origin 列表。
+ * `origin` 可以是字符串，也可以是数组——抓网页时常被重定向到另一个域名
+ * （例如 www.bing.com → cn.bing.com），每个落点都要单独授权。
  */
-export function originOf(source) {
-  const raw = source?.origin || source?.request?.url || "";
-  try {
-    return new URL(raw).origin;
-  } catch {
-    return "";
+export function originsOf(source) {
+  const raw = source?.origins ?? source?.origin ?? source?.request?.url ?? "";
+  const list = Array.isArray(raw) ? raw : [raw];
+  const seen = new Set();
+  for (const item of list) {
+    try {
+      seen.add(new URL(String(item)).origin);
+    } catch {
+      // 非法地址忽略
+    }
   }
+  return [...seen];
 }
 
 /**
@@ -87,13 +94,16 @@ export async function runSource(source, query, options = {}) {
   const url = fillString(request.url || "", vars);
   if (!url.ok || !url.value) return { ok: false, error: "请求地址含未填充的占位符" };
 
-  // 没有该 origin 的权限时，fetch 只会抛一句无从下手的 "Failed to fetch"，
-  // 这里提前拦下来，直接说清楚原因和解法。
-  const origin = originOf(source);
-  if (origin && chrome?.permissions?.contains) {
-    const granted = await chrome.permissions.contains({ origins: [`${origin}/*`] });
-    if (!granted) {
-      return { ok: false, error: `未授权访问 ${origin}，去设置页保存一次这个源即可授权` };
+  // 没有权限时，fetch 只会抛一句无从下手的 "Failed to fetch"，
+  // 这里提前拦下来，直接说清楚是哪个域名没授权。
+  const origins = originsOf(source);
+  if (origins.length && chrome?.permissions?.contains) {
+    const missing = [];
+    for (const origin of origins) {
+      if (!(await chrome.permissions.contains({ origins: [`${origin}/*`] }))) missing.push(origin);
+    }
+    if (missing.length) {
+      return { ok: false, error: `未授权访问 ${missing.join("、")}，去设置页保存一次这个源即可授权` };
     }
   }
 
@@ -121,13 +131,27 @@ export async function runSource(source, query, options = {}) {
   try {
     const response = await fetch(url.value, { method, headers, body, signal: controller.signal });
     const text = await response.text();
+    const spec = source.response || {};
+    const elapsed = () => Math.round(performance.now() - started);
+
+    // HTML 源：按 CSS 选择器从页面里取条目（用户自行编写，不预置）
+    if (source.type === "html") {
+      const preview = text.slice(0, 20000);
+      if (!response.ok) return { ok: false, error: `HTTP ${response.status}`, raw: preview };
+      const doc = new DOMParser().parseFromString(text, "text/html");
+      const htmlItems = extractHtmlItems(doc, spec, response.url || url.value);
+      if (!htmlItems) {
+        return { ok: false, error: "HTML 源缺少 response.items 选择器", raw: preview };
+      }
+      return { ok: true, items: htmlItems, ms: elapsed(), raw: preview };
+    }
+
     let raw;
     try {
       raw = JSON.parse(text);
     } catch {
       return { ok: false, error: `响应不是 JSON（HTTP ${response.status}）` };
     }
-    const spec = source.response || {};
     const apiMessage = getPath(raw, spec.errorPath);
     const describe = (typeof apiMessage === "string" && apiMessage) || "";
 
@@ -144,12 +168,12 @@ export async function runSource(source, query, options = {}) {
     }
 
     const newKey = spec.captureKeyPath ? getPath(raw, spec.captureKeyPath) : undefined;
-    return { ok: true, items, ms: Math.round(performance.now() - started), newKey, raw };
+    return { ok: true, items, ms: elapsed(), newKey, raw };
   } catch (error) {
     if (error?.name === "AbortError") return { ok: false, error: `超时 ${timeoutMs}ms` };
     const message = String(error?.message || error);
     if (/failed to fetch|networkerror|load failed/i.test(message)) {
-      return { ok: false, error: "请求失败（网络不可达，或被接口的跨域策略拦截）" };
+      return { ok: false, error: "请求失败（可能被重定向到未授权的域名，或网络不可达）" };
     }
     return { ok: false, error: message };
   } finally {
