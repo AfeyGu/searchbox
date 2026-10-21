@@ -102,3 +102,32 @@ function handleMenuClick(info) {
   if (!text) return undefined;
   return chrome.tabs.create({ url: searchUrlFor(text) });
 }
+
+/* ---------- 固定入口：工具栏按钮 / 快捷键 ---------- */
+
+const SEARCH_URL = chrome.runtime.getURL("src/search.html");
+
+/** 打开搜索页：已有搜索标签页就聚焦它，否则新建。 */
+async function openSearchPage() {
+  const tabs = await chrome.tabs.query({}).catch(() => []);
+  const existing = tabs.find((tab) => tab.url && tab.url.startsWith(SEARCH_URL));
+
+  if (existing) {
+    await chrome.tabs.update(existing.id, { active: true }).catch(() => {});
+    if (existing.windowId != null) {
+      await chrome.windows.update(existing.windowId, { focused: true }).catch(() => {});
+    }
+    return;
+  }
+
+  await chrome.tabs.create({ url: SEARCH_URL, active: true });
+}
+
+// 没有 popup 时，点工具栏图标会触发 onClicked
+chrome.action.onClicked.addListener(() => {
+  openSearchPage();
+});
+
+chrome.commands.onCommand.addListener((command) => {
+  if (command === "open-searchbox") openSearchPage();
+});
