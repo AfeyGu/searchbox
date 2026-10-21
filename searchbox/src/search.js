@@ -46,6 +46,10 @@ function hostOf(url) {
 }
 
 function faviconUrl(pageUrl) {
+  // 宿主页（油猴版）拿不到 chrome://favicon，由平台注入替代实现
+  const custom = globalThis.__SEARCHBOX_FAVICON__;
+  if (typeof custom === "function") return custom(pageUrl);
+
   const url = new URL(chrome.runtime.getURL("/_favicon/"));
   url.searchParams.set("pageUrl", pageUrl);
   url.searchParams.set("size", "32");

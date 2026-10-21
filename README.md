@@ -9,7 +9,14 @@
 1. 打开 `edge://extensions`（或 `chrome://extensions`），开启「开发人员模式」
 2. 「加载解压缩的扩展」→ 选择本仓库的 **`searchbox/`** 子目录
 
-> 仓库里 `searchbox/` 是扩展本体，`userscript/` 是同功能的油猴（Tampermonkey）移植版，见 [userscript/README.md](userscript/README.md)。
+### 油猴版（不用装扩展）
+
+同一个搜索页也有 Tampermonkey 版本：装脚本后打开 [宿主页](https://afeygu.github.io/searchbox/searchbox_script/host.html) 即可使用，适合不想开开发者模式或非 Chrome 浏览器。
+
+![油猴版](docs/userscript.png)
+
+代码在 [searchbox_script/](searchbox_script/)，与扩展版共用同一套核心逻辑（改一处两边生效）。
+
 3. `Ctrl+T` 打开新标签页，应看到搜索框
 
 ## 使用
