@@ -5,7 +5,7 @@
 ## 安装
 
 1. 打开 `edge://extensions`（或 `chrome://extensions`），开启「开发人员模式」
-2. 「加载解压缩的扩展」→ 选择本仓库的 **`extension/`** 子目录
+2. 「加载解压缩的扩展」→ 选择本仓库的 **`searchbox/`** 子目录
 3. `Ctrl+T` 打开新标签页，应看到搜索框
 
 ## 使用
@@ -62,7 +62,7 @@
 
 ## 自检
 
-改过 `extension/src/core/` 里的解析或合并逻辑后，打开 `extension/src/tests.html`（设置页底部有入口）跑一遍断言，应全绿。
+改过 `searchbox/src/core/` 里的解析或合并逻辑后，打开 `searchbox/src/tests.html`（设置页底部有入口）跑一遍断言，应全绿。
 
 ## 结果数量
 
@@ -80,7 +80,7 @@
 ## 结构
 
 ```
-extension/                  ← 这一层才是被浏览器加载的扩展目录
+searchbox/                  ← 这一层才是被浏览器加载的扩展目录
   manifest.json             MV3 清单；扩展 ID 由 key 固定
   src/search.*              首页与结果页（同一个页面）
   src/options.*             设置页：源列表、配置编辑、Key、测试面板
