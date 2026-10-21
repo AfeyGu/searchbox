@@ -120,7 +120,7 @@
 
 #### 2）Google：走官方 JSON 接口，需要 key + cx
 
-> Google 的搜索结果页是 JS 渲染的（实测抓下来 200、约 90KB，但结果块 0 个），**静态 HTML 里没有条目**，所以 Google 只能走官方接口。
+> 实测：直接请求 Google 搜索页，拿到的**不是结果**，而是一个 `enablejs` 过渡页——约 90 KB，可见文字只有 58 个字符（"如果您在几秒钟内没有被重定向，请点击此处"），结果要等脚本跳到另一个地址后才加载。加上 Google 对无 cookie 的自动化请求另有拦截，抓网页这条路不可靠，所以 Google 用官方接口。
 
 准备两样东西：Cloud Console 里启用 Custom Search API 得到 **key**；[programmablesearchengine.google.com](https://programmablesearchengine.google.com/) 建一个搜索引擎（勾"搜索整个网络"）得到 **cx**。
 
@@ -173,7 +173,7 @@
 |---|---|
 | Bing | 可以，`li.b_algo` 结构稳定 |
 | 百度 | 抓不到（返回约 1.4KB 的空壳页，反爬） |
-| Google | 抓不到（JS 渲染，必须走官方 API） |
+| Google | 抓不到：直接请求只返回 `enablejs` 过渡页，结果需由脚本加载 |
 
 ### 常见坑
 
