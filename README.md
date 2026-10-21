@@ -127,6 +127,8 @@
 >
 > 但即使拿到真结果也不适合做源：`#rso div.MjjYud` 下 18 个容器里只有 9 个是真结果（第一个是广告），摘要只带出 7 条，链接被包装成 `/goto?url=<不透明串>`，真实地址只出现在 `<cite>` 里且常常只有域名。
 >
+> 更麻烦的是**形态不稳定**：连续请求会在两种页面之间跳动——一种约 585 KB 带 `#rso` 容器（链接是 `/goto`），另一种约 65 KB 完全没有 `#rso`（结果在别的结构里）。选择器没法同时命中两种形态。
+>
 > 结论：Google 用官方接口；想抓网页，Bing 才是合适的对象。
 
 准备两样东西：Cloud Console 里启用 Custom Search API 得到 **key**；[programmablesearchengine.google.com](https://programmablesearchengine.google.com/) 建一个搜索引擎（勾"搜索整个网络"）得到 **cx**。
