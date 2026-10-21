@@ -148,7 +148,8 @@ async function search(query) {
   renderSkeleton();
   setStatus(`正在搜索「${query}」…`, "busy");
 
-  const sources = (await loadSources()).filter((source) => source.enabled);
+  // 不写 enabled 视为启用，与设置页的 `enabled !== false` 保持一致
+  const sources = (await loadSources()).filter((source) => source.enabled !== false);
   if (!sources.length) {
     resultsEl.replaceChildren();
     setStatus("没有启用的搜索源，去设置页开启一个", "error");
