@@ -1,0 +1,8 @@
+# 换行：仓库内存 LF，工作区按平台自动转换
+# 不写 eol=lf 是有意的——强制指定会让 Windows 上已签出的文件全部显示为"已修改"
+* text=auto
+
+# 二进制文件：不做换行转换，也不做文本差异比较
+*.png binary
+*.ico binary
+*.jpg binary
